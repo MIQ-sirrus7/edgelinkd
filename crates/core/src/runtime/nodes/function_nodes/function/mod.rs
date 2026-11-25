@@ -1,5 +1,7 @@
-use std::sync::Arc;
+use std::future::{Future, poll_fn};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock};
+use std::time::{Duration, Instant};
 
 use rquickjs::async_with;
 use rquickjs::context::EvalOptions;
@@ -83,17 +85,15 @@ pub(crate) struct FunctionNode {
 
     /// The configured script timeout in milliseconds, when the flow set one.
     script_timeout_ms: Option<u64>,
+    max_execution_ms: u64,
 
-    /// The wall-clock deadline a running script is interrupted at, in milliseconds since the Unix
-    /// epoch; `u64::MAX` while no script is running (or when no timeout is configured). The QuickJS
-    /// interrupt handler reads it on every interpreter step, so a runaway `while(1){}` cannot take
-    /// the runtime's thread down with it.
+    /// Monotonic message deadline, or `u64::MAX` when idle.
     script_deadline_ms: Arc<AtomicU64>,
 }
 
-/// Milliseconds since the Unix epoch, saturating at 0 for the pre-1970 clock the tests cannot hit.
 fn now_ms() -> u64 {
-    chrono::Utc::now().timestamp_millis().max(0) as u64
+    static START: LazyLock<Instant> = LazyLock::new(Instant::now);
+    START.elapsed().as_millis() as u64
 }
 
 const JS_PRELUDE_SCRIPT: &str = include_str!("./function.prelude.js");
@@ -119,9 +119,39 @@ impl FunctionNode {
         }
     }
 
+    // QuickJS also runs timer callbacks and pending jobs between input messages.
+    async fn drive_js<F: Future>(&self, deadline: &AtomicU64, future: F) -> F::Output {
+        if self.max_execution_ms == 0 {
+            return future.await;
+        }
+        let mut future = std::pin::pin!(future);
+        poll_fn(|cx| {
+            deadline.store(now_ms().saturating_add(self.max_execution_ms), Ordering::Relaxed);
+            let result = future.as_mut().poll(cx);
+            deadline.store(u64::MAX, Ordering::Relaxed);
+            result
+        })
+        .await
+    }
+
+    async fn call_script<'js, T: FromJs<'js>>(
+        function: js::Function<'js>,
+        args: impl js::IntoArgs<'js>,
+        limit_ms: u64,
+    ) -> js::Result<T> {
+        let ctx = function.ctx().clone();
+        let call = async { function.call::<_, js::Promise>(args)?.into_future().await };
+        if limit_ms == 0 {
+            return call.await;
+        }
+        tokio::time::timeout(Duration::from_millis(limit_ms), call).await.unwrap_or_else(|_| {
+            Err(js::Exception::throw_message(&ctx, &format!("Script execution timed out after {limit_ms}ms")))
+        })
+    }
+
     /// Start the script timeout for the JS that is about to run.
     fn arm_script_timeout(&self) {
-        let deadline = self.script_timeout_ms.map(|ms| now_ms() + ms).unwrap_or(u64::MAX);
+        let deadline = self.script_timeout_ms.map(|ms| now_ms().saturating_add(ms)).unwrap_or(u64::MAX);
         self.script_deadline_ms.store(deadline, Ordering::Relaxed);
     }
 
@@ -161,11 +191,16 @@ impl FlowNodeBehavior for FunctionNode {
 
         // The node's `timeout` option: interrupt the interpreter once the deadline passes, so a
         // runaway script fails the message instead of hanging the node's task forever.
+        let poll_deadline = Arc::new(AtomicU64::new(u64::MAX));
         {
+            let poll_deadline = poll_deadline.clone();
             let deadline = self.script_deadline_ms.clone();
             js_rt
                 .set_interrupt_handler(Some(Box::new(move || {
-                    let deadline = deadline.load(Ordering::Relaxed);
+                    let deadline = match deadline.load(Ordering::Relaxed) {
+                        u64::MAX => poll_deadline.load(Ordering::Relaxed),
+                        message => message,
+                    };
                     deadline != u64::MAX && now_ms() >= deadline
                 })))
                 .await;
@@ -175,7 +210,7 @@ impl FlowNodeBehavior for FunctionNode {
 
         let js_ctx = js::AsyncContext::full(&js_rt).await.unwrap();
         let cloned_this = self.clone();
-        async_with!(js_ctx => |ctx| {
+        let run = async_with!(js_ctx => |ctx| {
             if let Err(e) = cloned_this.prepare_js_ctx(&ctx) {
                 // It's a fatal error
                 log::error!("[function:{}] Fatal error! Failed to prepare JavaScript context: {:?}", cloned_this.name(), e);
@@ -235,18 +270,18 @@ impl FlowNodeBehavior for FunctionNode {
                 let _ = cleanup.call::<_, ()>(());
             }
             while ctx.execute_pending_job() {}
-        })
-        .await;
+        });
+        self.drive_js(&poll_deadline, run).await;
 
         js_rt.run_gc().await;
-        js_rt.idle().await;
+        self.drive_js(&poll_deadline, js_rt.idle()).await;
         log::debug!("[function:{}] processing task has been terminated.", self.name());
     }
 }
 
 impl FunctionNode {
     fn build(
-        _flow: &Flow,
+        flow: &Flow,
         base_node: BaseFlowNodeState,
         config: &RedFlowNodeConfig,
         _options: Option<&config::Config>,
@@ -287,13 +322,19 @@ impl FunctionNode {
             function_config.finalize.unwrap_or("".to_owned()),
         );
 
+        let max_execution_ms = flow.settings().function_timeout_max_ms;
+        let mut timeout = function_config.timeout.map(|seconds| (seconds * 1000.0).round() as u64);
+        if max_execution_ms > 0 {
+            timeout = Some(timeout.filter(|ms| *ms > 0).unwrap_or(max_execution_ms).min(max_execution_ms));
+        }
         let node = FunctionNode {
             base: base_node,
             link_events: Default::default(),
             link_event_id: AtomicU64::new(1),
             output_count: function_config.output_count.max(1),
             user_script: user_script.as_bytes().to_vec(),
-            script_timeout_ms: function_config.timeout.map(|seconds| (seconds * 1000.0).round() as u64),
+            script_timeout_ms: timeout,
+            max_execution_ms,
             script_deadline_ms: Arc::new(AtomicU64::new(u64::MAX)),
         };
         Ok(Box::new(node))
@@ -311,13 +352,8 @@ impl FunctionNode {
         let js_msg = msg.into_js(&ctx)?;
         let args = (js_msg,);
         self.arm_script_timeout();
-        // `call` runs the function body up to its first `await`, so a synchronous `while(1){}` is
-        // interrupted here rather than in `into_future`.
-        let call_result = user_func.call::<_, rquickjs::Promise>(args);
-        let outcome: js::Result<js::Value> = match call_result {
-            Ok(promised) => promised.into_future().await,
-            Err(e) => Err(e),
-        };
+        let wait_ms = self.script_timeout_ms.unwrap_or(0).min(self.max_execution_ms);
+        let outcome = Self::call_script(user_func, args, wait_ms).await;
         let timed_out = self.script_timed_out();
         self.disarm_script_timeout();
         let js_result = match outcome.catch(&ctx) {
@@ -429,8 +465,7 @@ impl FunctionNode {
         log::debug!("[function:{}] Initializing JavaScript context...", self.name());
 
         let init_func: js::Function = ctx.globals().get("__el_init_func")?;
-        let promised = init_func.call::<_, rquickjs::Promise>(())?;
-        match promised.into_future().await {
+        match Self::call_script::<()>(init_func, (), self.max_execution_ms).await.catch(&ctx) {
             Ok(()) => (),
             Err(e) => {
                 log::error!("Failed to invoke the initialization script code: {e}");
@@ -443,8 +478,7 @@ impl FunctionNode {
 
     async fn finalize_async<'js>(self: &Arc<Self>, ctx: js::Ctx<'js>) -> crate::Result<()> {
         let final_func: js::Function = ctx.globals().get("__el_finalize_func")?;
-        let promised = final_func.call::<_, rquickjs::Promise>(())?;
-        match promised.into_future().await {
+        match Self::call_script::<()>(final_func, (), self.max_execution_ms).await.catch(&ctx) {
             Ok(()) => Ok(()),
             Err(e) => {
                 log::error!("[function:{}] Failed to invoke the `finialize` script code: {e}", self.name());

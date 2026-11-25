@@ -11,3 +11,6 @@ memory = { provider = "memory" }
 
 [runtime.flow]
 node_msg_queue_capacity = 16
+# Maximum milliseconds for a Function call, including awaited work and startup/shutdown scripts.
+# Also bounds uninterrupted timer callbacks. Zero keeps the flow's own timeout.
+function_timeout_max_ms = 0

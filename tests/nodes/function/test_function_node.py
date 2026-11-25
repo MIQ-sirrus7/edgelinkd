@@ -53,6 +53,43 @@ def _assert_function_log(entry, level, msg):
 class TestFunctionNode:
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("node_timeout, expected_ms", [(None, 50), ("0", 50), (1, 50), (0.025, 25)])
+    async def test_configured_execution_ceiling(self, node_timeout, expected_ms):
+        node = {"type": "function", "func": "if (msg.payload === 1) { await new Promise(() => {}); } return msg;"}
+        if node_timeout is not None:
+            node["timeout"] = node_timeout
+        flows = _function_flow(node)
+        flows.append({"id": "3", "z": "100", "type": "catch", "scope": ["1"], "wires": [["2"]]})
+        config = copy.deepcopy(TEST_EDGELINLKD_CONFIG)
+        config["runtime"]["flow"] = {"function_timeout_max_ms": 50}
+        msgs = await run_flow_with_msgs_ntimes(flows, [{"payload": 1}, {"payload": 2}], 2, config=config)
+        first, second = sorted(msgs, key=lambda msg: msg["payload"])
+        assert f"timed out after {expected_ms}ms" in first["error"]["message"]
+        assert "error" not in second
+
+    @pytest.mark.asyncio
+    async def test_ceiling_interrupts_detached_timer(self):
+        node = {"type": "function", "func": """
+            if (msg.payload === 1) {
+                setTimeout(() => {
+                    node.warn('timer started');
+                    const end = Date.now() + 250;
+                    while (Date.now() < end) {}
+                    node.warn('timer finished');
+                }, 1);
+            }
+            return msg;
+        """}
+        config = copy.deepcopy(TEST_EDGELINLKD_CONFIG)
+        config["runtime"]["flow"] = {"function_timeout_max_ms": 50}
+        take_node_logs()
+        inputs = [("1", {"payload": 1}, 0), ("1", {"payload": 2}, 300)]
+        out = await edgelink.run_flows_for_once(0.4, _function_flow(node), inputs, config)
+        assert [msg["payload"] for msg in out] == [1, 2]
+        warnings = [event["msg"] for event in take_node_logs() if event["level"] == "WARN"]
+        assert warnings == ["timer started"]
+
+    @pytest.mark.asyncio
     @pytest.mark.it('should send returned message using send()')
     async def test_it_should_send_returned_message_using_send_0(self):
         flows = [

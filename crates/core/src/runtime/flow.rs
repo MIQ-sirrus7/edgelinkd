@@ -43,6 +43,9 @@ pub struct FlowSettings {
     /// dropped, as upstream's `enqueue` does.
     #[serde(default = "default_tcp_msg_queue_size")]
     pub tcp_msg_queue_size: usize,
+
+    #[serde(default)]
+    pub function_timeout_max_ms: u64,
 }
 
 fn default_node_msg_queue_capacity() -> usize {
@@ -82,6 +85,7 @@ impl Default for FlowSettings {
             node_msg_queue_capacity: default_node_msg_queue_capacity(),
             node_message_buffer_max_length: 0,
             tcp_msg_queue_size: default_tcp_msg_queue_size(),
+            function_timeout_max_ms: 0,
         }
     }
 }
