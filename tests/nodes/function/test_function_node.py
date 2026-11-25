@@ -68,6 +68,21 @@ class TestFunctionNode:
         assert "error" not in second
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("phase", ["initialize", "finalize"])
+    async def test_ceiling_discards_pending_lifecycle_jobs(self, phase):
+        node = {"type": "function", "func": "return msg;", phase: """
+            node.warn('started');
+            await new Promise(resolve => setTimeout(resolve, 200));
+            node.warn('finished');
+        """}
+        config = copy.deepcopy(TEST_EDGELINLKD_CONFIG)
+        config["runtime"]["flow"] = {"function_timeout_max_ms": 50}
+        take_node_logs()
+        await edgelink.run_flows_for_once(0.4, _function_flow(node), [], config)
+        warnings = [event["msg"] for event in take_node_logs() if event["level"] == "WARN"]
+        assert warnings == ["started"]
+
+    @pytest.mark.asyncio
     async def test_ceiling_interrupts_detached_timer(self):
         node = {"type": "function", "func": """
             if (msg.payload === 1) {

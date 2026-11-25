@@ -220,7 +220,7 @@ impl FlowNodeBehavior for FunctionNode {
 
                 stop_token.cancel();
                 stop_token.cancelled().await;
-                return;
+                return false;
             }
             while ctx.execute_pending_job() {}
 
@@ -230,7 +230,7 @@ impl FlowNodeBehavior for FunctionNode {
 
                 stop_token.cancel();
                 stop_token.cancelled().await;
-                return;
+                return false;
             }
             while ctx.execute_pending_job() {}
 
@@ -268,16 +268,20 @@ impl FlowNodeBehavior for FunctionNode {
 
             if let Err(e) = cloned_this.finalize_async(ctx.clone()).await {
                 log::error!("[function:{}] Fatal error! Failed to finalize JavaScript environment: {:?}", cloned_this.name(), e);
+                return false;
             }
             if let Ok(cleanup) = ctx.globals().get::<_, js::Function>("__edgelink_clearTimers") {
                 let _ = cleanup.call::<_, ()>(());
             }
             while ctx.execute_pending_job() {}
+            true
         });
-        self.drive_js(&poll_deadline, run).await;
-
-        js_rt.run_gc().await;
-        self.drive_js(&poll_deadline, js_rt.idle()).await;
+        // Dropping a failed sandbox discards its pending jobs. Driving it to idle here
+        // would resume user code after a failed startup or shutdown.
+        if self.drive_js(&poll_deadline, run).await {
+            js_rt.run_gc().await;
+            self.drive_js(&poll_deadline, js_rt.idle()).await;
+        }
         log::debug!("[function:{}] processing task has been terminated.", self.name());
     }
 }
