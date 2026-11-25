@@ -210,8 +210,11 @@ impl FlowNodeBehavior for FunctionNode {
 
         let js_ctx = js::AsyncContext::full(&js_rt).await.unwrap();
         let cloned_this = self.clone();
+        // The bundled prelude can take several hundred milliseconds during a cold gateway boot.
+        // Finish host setup before arming the user-code watchdog.
+        let prepared = js_ctx.with(|ctx| self.prepare_js_ctx(&ctx)).await;
         let run = async_with!(js_ctx => |ctx| {
-            if let Err(e) = cloned_this.prepare_js_ctx(&ctx) {
+            if let Err(e) = prepared.and_then(|()| cloned_this.load_user_script(&ctx)) {
                 // It's a fatal error
                 log::error!("[function:{}] Fatal error! Failed to prepare JavaScript context: {:?}", cloned_this.name(), e);
 
@@ -533,7 +536,12 @@ impl FunctionNode {
             return Err(EdgelinkError::InvalidOperation(e.to_string()))
                 .with_context(|| format!("Failed to evaluate the prelude script: {e:?}"));
         }
+        while ctx.execute_pending_job() {}
 
+        Ok(())
+    }
+
+    fn load_user_script(&self, ctx: &js::Ctx<'_>) -> crate::Result<()> {
         match ctx.eval_with_options::<(), _>(self.user_script.as_slice(), self.make_eval_options()).catch(ctx) {
             Ok(()) => (),
             Err(e) => {
