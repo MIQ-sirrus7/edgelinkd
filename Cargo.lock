@@ -2160,13 +2160,14 @@ dependencies = [
 [[package]]
 name = "node-red-contrib-socketcan-rs"
 version = "0.1.0"
-source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=3f3b2d707b459d5091fb459e6ace120214bb3857#3f3b2d707b459d5091fb459e6ace120214bb3857"
+source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=504d4d7600424a09a4b45f233d146c23044854fa#504d4d7600424a09a4b45f233d146c23044854fa"
 dependencies = [
  "async-trait",
  "config",
  "edgelink-core",
  "edgelink-macro",
  "inventory",
+ "libc",
  "log 0.4.27",
  "socketcan",
  "tokio",
@@ -3544,17 +3545,14 @@ checksum = "ea24328be148eea05f36bc3991b1c174c586853e04d1480b92429b2df6aea865"
 dependencies = [
  "bitflags 2.9.1",
  "embedded-can",
- "futures",
  "hex",
  "itertools 0.13.0",
  "libc",
  "log 0.4.27",
- "mio",
  "nb",
  "nix 0.29.0",
  "socket2 0.5.10",
  "thiserror 2.0.12",
- "tokio",
 ]
 
 [[package]]
