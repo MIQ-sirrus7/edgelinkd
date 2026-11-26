@@ -173,6 +173,11 @@ port = 1888
 
 The `5.0.9` upgrade branch bundles the Node-RED 5.0.9 editor. Building it requires
 Node.js 22.9 or later. The admin API does not grant cross-origin access by default.
+
+`GET /api/info` reports the EdgeLinkd package version in `version` and the web API
+version in `apiVersion`. Clients can require a matching major and a minimum minor.
+Breaking changes increment the major. Compatible additions increment the minor.
+Fixes that preserve the API contract keep both numbers.
 The editor supports Monaco (default), Ace, and the basic editor through
 `web.editorTheme.codeEditor.lib`; an unknown editor name falls back to `basic`.
 Theme schemes are declared through `web.editorTheme.schemes` (`light` and `dark`).

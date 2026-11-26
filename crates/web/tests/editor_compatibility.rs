@@ -16,6 +16,16 @@ fn server(editor: &str) -> WebServer {
 }
 
 #[tokio::test]
+async fn api_info_reports_the_web_api_version() {
+    let response =
+        server("monaco").router().oneshot(Request::get("/api/info").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let info: Value = serde_json::from_slice(&to_bytes(response.into_body(), 16384).await.unwrap()).unwrap();
+    assert_eq!(info["apiVersion"], json!({"major": 1, "minor": 0}));
+    assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
+}
+
+#[tokio::test]
 async fn code_exchange_explicitly_rejects_unsupported_login() {
     let response = server("monaco")
         .router()

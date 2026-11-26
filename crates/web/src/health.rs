@@ -15,6 +15,7 @@ pub async fn api_info() -> Result<Json<Value>, StatusCode> {
     Ok(Json(serde_json::json!({
         "name": "EdgeLinkd Web API",
         "version": env!("CARGO_PKG_VERSION"),
+        "apiVersion": {"major": 1, "minor": 0},
         "description": "Node-RED compatible API for EdgeLinkd",
         "endpoints": {
             "admin": {
