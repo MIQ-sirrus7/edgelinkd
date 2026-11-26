@@ -3,6 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[path = "build/plugins.rs"]
+mod plugins;
+
 fn main() {
     println!("cargo:rerun-if-env-changed=EDGELINK_VERSION");
     println!("cargo:rerun-if-env-changed=GITHUB_RUN_NUMBER");
@@ -23,12 +26,34 @@ fn main() {
     println!("cargo:rustc-env=EDGELINK_VERSION={version}");
 
     set_git_revision_hash();
-    check_patch();
-    gen_use_plugins_file();
-    build_static_files();
+    let plugins = plugins::selected();
+    gen_use_plugins_file(&plugins);
+    println!("cargo:rerun-if-env-changed=EDGELINK_SKIP_EDITOR");
+    println!("cargo:rerun-if-env-changed=EDGELINK_EDITOR_BASE_DIR");
+    let static_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("ui_static");
+    if static_dir.exists() {
+        fs::remove_dir_all(&static_dir).expect("clear this build's editor output");
+    }
+    if env::var("EDGELINK_SKIP_EDITOR").as_deref() != Ok("1") {
+        if let Some(base) = env::var_os("EDGELINK_EDITOR_BASE_DIR") {
+            let base = PathBuf::from(base);
+            println!("cargo:rerun-if-changed={}", base.display());
+            fs::create_dir_all(&static_dir).expect("create editor directory");
+            copy_dir_contents_incremental(&base, &static_dir).expect("stage prebuilt editor distribution");
+        } else {
+            check_patch();
+            build_static_files(&static_dir);
+        }
+        for resource in ["index.html", "red/red.min.js", "red/main.min.js", "red/style.min.css", "vendor/vendor.js"] {
+            assert!(static_dir.join(resource).is_file(), "Missing editor resource: {resource}");
+        }
+        for plugin in plugins {
+            plugin.stage(&static_dir);
+        }
+    }
 }
 
-fn gen_use_plugins_file() {
+fn gen_use_plugins_file(external: &[plugins::Plugin]) {
     let out_dir = env::var_os("OUT_DIR").unwrap();
     let dest_path = Path::new(&out_dir).join("__use_node_plugins.rs");
     let plugins_dir = Path::new("node-plugins");
@@ -55,6 +80,9 @@ fn gen_use_plugins_file() {
         file_content.push_str(&format!("extern crate {plugin_name};\n"));
     }
 
+    for plugin in external {
+        file_content.push_str(&format!("extern crate {};\n", plugin.library));
+    }
     fs::write(&dest_path, file_content).unwrap();
 
     println!("cargo:rerun-if-changed=node-plugins");
@@ -96,7 +124,7 @@ fn check_patch() {
     }
 }
 
-fn build_static_files() {
+fn build_static_files(static_dir: &Path) {
     use std::path::PathBuf;
 
     println!("cargo:rerun-if-changed=crates/web/public");
@@ -106,7 +134,6 @@ fn build_static_files() {
     println!("cargo:rerun-if-changed=3rd-party/node-red-nodes/io/serialport");
     println!("cargo:rerun-if-env-changed=EDGELINK_NODE_RED_PREBUILT");
 
-    let static_dir = PathBuf::from("target/ui_static");
     let public_dir = PathBuf::from("crates/web/public");
     let node_red_dir = PathBuf::from("3rd-party/node-red/packages/node_modules/@node-red/editor-client/public");
     let node_red_nodes_dir = PathBuf::from("3rd-party/node-red/packages/node_modules/@node-red/nodes");
@@ -124,7 +151,7 @@ fn build_static_files() {
         }
         // Refresh copied assets even when their timestamps match an older editor build.
         if static_dir.exists() {
-            fs::remove_dir_all(&static_dir).expect("remove stale editor assets");
+            fs::remove_dir_all(static_dir).expect("remove stale editor assets");
         }
     } else if node_red_root.exists() {
         // Check if Node-RED needs to be built
@@ -146,7 +173,7 @@ fn build_static_files() {
             fs::write(build_stamp, inputs).expect("record Node-RED build inputs");
             // A version switch can remove or rename assets (for example Monaco locales).
             if static_dir.exists() {
-                fs::remove_dir_all(&static_dir).expect("remove stale editor assets");
+                fs::remove_dir_all(static_dir).expect("remove stale editor assets");
             }
         }
     }
@@ -156,16 +183,16 @@ fn build_static_files() {
         println!("cargo:warning=Building static files directory...");
 
         // Create static directory if it doesn't exist
-        std::fs::create_dir_all(&static_dir).expect("Failed to create static directory");
+        std::fs::create_dir_all(static_dir).expect("Failed to create static directory");
 
         // Incrementally copy from public directory
         if public_dir.exists() {
-            copy_dir_contents_incremental(&public_dir, &static_dir).expect("Failed to copy public files");
+            copy_dir_contents_incremental(&public_dir, static_dir).expect("Failed to copy public files");
         }
 
         // Incrementally copy from node-red directory
         if node_red_dir.exists() {
-            copy_dir_contents_incremental(&node_red_dir, &static_dir).expect("Failed to copy node-red files");
+            copy_dir_contents_incremental(&node_red_dir, static_dir).expect("Failed to copy node-red files");
         }
 
         // Copy Node-RED nodes directory to static/nodes
@@ -178,16 +205,16 @@ fn build_static_files() {
 
         // Copy Node-RED core nodes lib directories to static/
         if node_red_nodes_dir.exists() {
-            copy_node_lib_directories(&node_red_nodes_dir, &static_dir).expect("Failed to copy node lib directories");
+            copy_node_lib_directories(&node_red_nodes_dir, static_dir).expect("Failed to copy node lib directories");
         }
 
         // Copy Node-RED icon files to static/icons (for icon requests like /icons/node-red/file-in.svg)
         if node_red_nodes_dir.exists() {
-            copy_node_red_icons(&node_red_nodes_dir, &static_dir).expect("Failed to copy node-red icons");
+            copy_node_red_icons(&node_red_nodes_dir, static_dir).expect("Failed to copy node-red icons");
         }
 
         // Copy Node-RED locales for i18n support
-        copy_node_red_locales(&static_dir).expect("Failed to copy node-red locales");
+        copy_node_red_locales(static_dir).expect("Failed to copy node-red locales");
 
         let serialport_src = PathBuf::from("3rd-party/node-red-nodes/io/serialport");
         let serialport_dst = static_dir.join("nodes/node-red-node-serialport");
@@ -231,9 +258,6 @@ fn build_static_files() {
         println!("cargo:warning=Static files build complete!");
     }
 
-    for resource in ["index.html", "red/red.min.js", "red/main.min.js", "red/style.min.css", "vendor/vendor.js"] {
-        assert!(static_dir.join(resource).is_file(), "Missing editor resource: {resource}; build Node-RED first");
-    }
 }
 
 /// Incrementally copy directory contents, only copying files that are newer or don't exist

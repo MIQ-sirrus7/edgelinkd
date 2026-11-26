@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -63,6 +64,16 @@ def copytree(src, dst):
     except Exception as e:
         print(f"Failed to copy directory {src} to {dst}: {e}", file=sys.stderr)
         sys.exit(-1)
+
+
+def cargo_editor_dir(executable):
+    # Cargo records the generated Rust import file in the binary's dep-info.
+    # Its parent is the OUT_DIR for exactly the features used by this binary.
+    deps = executable.with_suffix(".d").read_text(encoding="utf-8").replace("\\", "/")
+    matches = set(re.findall(r"/build/(edgelink-app-[0-9a-f]+)/out/__use_node_plugins[.]rs", deps))
+    if len(matches) != 1:
+        raise ValueError(f"Could not identify the editor build for {executable}")
+    return executable.parent / "build" / matches.pop() / "out" / "ui_static"
 
 
 def main():
@@ -129,7 +140,7 @@ def main():
             bin_dir = tmp / "bin"
             bin_dir.mkdir()
             # Executable and DLLs
-            target_dir = ROOT / "target" / args.target / args.mode
+            target_dir = Path(os.environ.get("CARGO_TARGET_DIR", ROOT / "target")) / args.target / args.mode
             executable = target_dir / ("edgelinkd.exe" if is_windows else "edgelinkd")
             if not executable.is_file():
                 raise FileNotFoundError(f"Missing executable: {executable}")
@@ -140,7 +151,7 @@ def main():
                 shutil.copy(dll, bin_dir / dll.name)
 
             # 5. bin/ui_static
-            ui_static_src = ROOT / "target" / "ui_static"
+            ui_static_src = cargo_editor_dir(executable)
             for resource in ("index.html", "red/red.min.js", "red/main.min.js", "red/style.min.css", "vendor/vendor.js"):
                 if not (ui_static_src / resource).is_file():
                     raise FileNotFoundError(f"Missing editor resource: {ui_static_src / resource}")

@@ -24,6 +24,7 @@ pub use cliargs::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    edgelink_core::runtime::paths::set_cargo_output(env!("OUT_DIR"));
     let args = Arc::new(CliArgs::parse());
     if let Err(ref err) = runner::run_app(args).await {
         log::error!("Application error: {err}");

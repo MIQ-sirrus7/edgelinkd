@@ -832,12 +832,14 @@ dependencies = [
  "edgelink-web",
  "log 0.4.27",
  "log4rs",
+ "node-red-contrib-socketcan-rs",
  "once_cell",
  "semver",
  "serde",
  "serde_json",
  "tokio",
  "tokio-util",
+ "toml 0.8.23",
 ]
 
 [[package]]
@@ -1013,6 +1015,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e079f19b08ca6239f47f8ba8509c11cf3ea30095831f7fed61441475edd8c449"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "embedded-can"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9d2e857f87ac832df68fa498d18ddc679175cf3d2e4aa893988e5601baf9438"
+dependencies = [
+ "nb",
 ]
 
 [[package]]
@@ -1777,6 +1788,15 @@ dependencies = [
 
 [[package]]
 name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
@@ -2090,6 +2110,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "nb"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d5439c4ad607c3c23abf66de8c8bf57ba8adcd1f129e699851a6e43935d339d"
+
+[[package]]
 name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2108,6 +2134,19 @@ dependencies = [
 
 [[package]]
 name = "nix"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71e2746dc3a24dd78b3cfcb7be93368c6de9963d30f43a6a73998a9cf4b17b46"
+dependencies = [
+ "bitflags 2.9.1",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
+name = "nix"
 version = "0.31.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
@@ -2116,6 +2155,22 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "node-red-contrib-socketcan-rs"
+version = "0.1.0"
+source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=3f3b2d707b459d5091fb459e6ace120214bb3857#3f3b2d707b459d5091fb459e6ace120214bb3857"
+dependencies = [
+ "async-trait",
+ "config",
+ "edgelink-core",
+ "edgelink-macro",
+ "inventory",
+ "log 0.4.27",
+ "socketcan",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3479,6 +3534,27 @@ checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
 dependencies = [
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "socketcan"
+version = "3.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea24328be148eea05f36bc3991b1c174c586853e04d1480b92429b2df6aea865"
+dependencies = [
+ "bitflags 2.9.1",
+ "embedded-can",
+ "futures",
+ "hex",
+ "itertools 0.13.0",
+ "libc",
+ "log 0.4.27",
+ "mio",
+ "nb",
+ "nix 0.29.0",
+ "socket2 0.5.10",
+ "thiserror 2.0.12",
+ "tokio",
 ]
 
 [[package]]

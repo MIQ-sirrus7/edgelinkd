@@ -159,10 +159,20 @@ edgelink-nodes-cbor = { path = "node-plugins/edgelink-nodes-cbor", optional = tr
 
 edgelink-web = { path = "crates/web", default-features = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+node-red-contrib-socketcan-rs = { git = "https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git", rev = "3f3b2d707b459d5091fb459e6ace120214bb3857", optional = true }
+
+# External plugins must register nodes in this daemon's copy of the core.
+[patch."https://github.com/MIQ-sirrus7/edgelinkd-internal"]
+edgelink-core = { path = "crates/core" }
+edgelink-macro = { path = "crates/macro" }
+
 [dev-dependencies]
 
 [build-dependencies]
 chrono = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+toml = "0.8"
 
 [workspace]
 members = ["crates/*", "node-plugins/*"]
@@ -179,6 +189,7 @@ full = ["default", "rqjs_bindgen", "file_encodings_legacy"]
 default = ["core", "metrics", "js", "jsonata", "nodes_network", "nodes_storage", "nodes_parser", "nodes_file_encodings", "nodes_serialport", "nodes_cbor"]
 nodes_serialport = ["dep:edgelink-nodes-serialport"]
 nodes_cbor = ["dep:edgelink-nodes-cbor"]
+nodes_socketcan = ["dep:node-red-contrib-socketcan-rs"]
 core = ["edgelink-core/core"]
 metrics = ["edgelink-core/metrics"]
 js = ["edgelink-core/js"]

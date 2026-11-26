@@ -74,6 +74,14 @@ git submodule update --init --recursive
 cargo build --release
 ```
 
+On Linux, add `--features nodes_socketcan` to build CAN Receive, CAN Send,
+CAN Reconnect and the CAN Interface configuration node. The Status node can
+watch their connection state. This topic currently pins a private plugin
+repository, so Cargo needs Git read access to resolve its dependencies.
+Editor builds include the enabled plugin's palette definitions and license.
+To reuse an existing matching editor distribution, set
+`EDGELINK_EDITOR_BASE_DIR` to its stock `ui_static` directory.
+
 **Windows users**: Ensure `patch.exe` is in your PATH (included with Git) and install Visual Studio for MSVC.
 
 **Supported platforms**:
