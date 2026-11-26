@@ -257,7 +257,6 @@ fn build_static_files(static_dir: &Path) {
             .expect("copy cbor icon");
         println!("cargo:warning=Static files build complete!");
     }
-
 }
 
 /// Incrementally copy directory contents, only copying files that are newer or don't exist
