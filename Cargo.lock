@@ -2160,7 +2160,7 @@ dependencies = [
 [[package]]
 name = "node-red-contrib-socketcan-rs"
 version = "0.1.0"
-source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=504d4d7600424a09a4b45f233d146c23044854fa#504d4d7600424a09a4b45f233d146c23044854fa"
+source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=5c4a1ae67dbf631d36ce12f983055a0fe4e29d51#5c4a1ae67dbf631d36ce12f983055a0fe4e29d51"
 dependencies = [
  "async-trait",
  "config",
@@ -2169,6 +2169,7 @@ dependencies = [
  "inventory",
  "libc",
  "log 0.4.27",
+ "serde_json",
  "socketcan",
  "tokio",
  "tokio-util",
