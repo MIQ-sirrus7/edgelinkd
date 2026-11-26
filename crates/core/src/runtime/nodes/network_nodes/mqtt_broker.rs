@@ -150,6 +150,9 @@ fn default_connect_timeout() -> u64 {
 
 fn build_v5_options(config: &MqttBrokerConfig, client_id: String, host: String, port: u16) -> rumqttc::v5::MqttOptions {
     let mut options = rumqttc::v5::MqttOptions::new(client_id, host, port);
+    if config.tls.as_deref().is_some_and(|tls| !tls.is_empty()) {
+        options.set_transport(Transport::tls_with_default_config());
+    }
     options.set_keep_alive(Duration::from_secs(config.keepalive as u64));
     options.set_clean_start(config.clean);
     if let Some(username) = &config.username {
@@ -249,7 +252,50 @@ impl MqttBrokerNode {
         config: &RedGlobalNodeConfig,
         _options: Option<&config::Config>,
     ) -> crate::Result<Box<dyn GlobalNodeBehavior>> {
-        let broker_config = MqttBrokerConfig::deserialize(&config.rest)?;
+        // Node-RED HTML forms serialize edit fields as strings. Imported flows
+        // can also contain native JSON scalars.
+        let mut values = config.rest.clone();
+        if let Some(fields) = values.as_object_mut() {
+            for key in [
+                "port",
+                "protocolVersion",
+                "keepalive",
+                "reconnectPeriod",
+                "connect_timeout",
+                "willQos",
+                "birthQos",
+                "closeQos",
+            ] {
+                if let Some(text) = fields.get(key).and_then(serde_json::Value::as_str) {
+                    if text.is_empty() {
+                        fields.remove(key);
+                    } else {
+                        fields.insert(key.into(), text.parse::<u64>()?.into());
+                    }
+                }
+            }
+            for key in ["birthRetain", "closeRetain", "willRetain"] {
+                if let Some(text) = fields.get(key).and_then(serde_json::Value::as_str) {
+                    fields.insert(key.into(), text.parse::<bool>()?.into());
+                }
+            }
+            if let Some(clean) = fields.get("cleansession").cloned() {
+                fields.insert("clean".into(), clean);
+            }
+            if fields.get("usetls").and_then(serde_json::Value::as_bool) == Some(true)
+                && fields.get("tls").and_then(serde_json::Value::as_str).unwrap_or_default().is_empty()
+            {
+                fields.insert("tls".into(), "system".into());
+            }
+            if let Some(credentials) = fields.remove("credentials") {
+                for (from, to) in [("user", "username"), ("password", "password")] {
+                    if let Some(text) = credentials.get(from).and_then(serde_json::Value::as_str) {
+                        fields.entry(to).or_insert_with(|| text.into());
+                    }
+                }
+            }
+        }
+        let broker_config = MqttBrokerConfig::deserialize(&values)?;
         let state = BaseGlobalNodeState {
             id: config.id,
             name: config.name.clone(),
@@ -296,8 +342,7 @@ impl MqttBrokerNode {
         }
 
         // TLS/SSL
-        if let Some(ref _tls) = self.config.tls {
-            // For demo: if tls is set, use TLS without cert validation (should be improved)
+        if self.config.tls.as_deref().is_some_and(|tls| !tls.is_empty()) {
             opts.set_transport(Transport::tls_with_default_config());
         }
 

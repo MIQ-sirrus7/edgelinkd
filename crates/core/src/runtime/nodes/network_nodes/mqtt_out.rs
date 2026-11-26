@@ -156,7 +156,21 @@ impl MqttOutNode {
         config: &RedFlowNodeConfig,
         _options: Option<&config::Config>,
     ) -> crate::Result<Box<dyn FlowNodeBehavior>> {
-        let mqtt_config = MqttOutNodeConfig::deserialize(&config.rest)?;
+        let mut values = config.rest.clone();
+        if let Some(fields) = values.as_object_mut() {
+            for key in ["retain", "expiry", "qos"] {
+                if fields.get(key).and_then(serde_json::Value::as_str) == Some("") {
+                    fields.remove(key);
+                }
+            }
+            if let Some(text) = fields.get("retain").and_then(serde_json::Value::as_str) {
+                fields.insert("retain".into(), text.parse::<bool>()?.into());
+            }
+            if let Some(text) = fields.get("expiry").and_then(serde_json::Value::as_str) {
+                fields.insert("expiry".into(), text.parse::<u32>()?.into());
+            }
+        }
+        let mqtt_config = MqttOutNodeConfig::deserialize(&values)?;
         Self::parse_user_properties(&mqtt_config.user_properties)?;
 
         let node =
