@@ -8,7 +8,7 @@ use axum::{
 };
 use edgelink_core::runtime::paths;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 // settings/user_settings/locale/icons related handlers
@@ -41,15 +41,66 @@ pub async fn get_settings(Extension(state): Extension<Arc<WebState>>) -> Result<
     Ok(Json(settings.clone()))
 }
 
-/// Get icon list
-pub async fn get_icons() -> Result<Json<Value>, StatusCode> {
-    // Return a simulated icon list
-    let icons = serde_json::json!({
-        "node-red": ["arrow-in.svg", "arrow-out.svg", "debug.svg", "inject.svg", "function.svg"],
-        "edgelink": ["edge.svg", "link.svg"]
-    });
+/// List the icons available from this editor's static directory.
+pub async fn get_icons() -> Result<Json<BTreeMap<String, Vec<String>>>, StatusCode> {
+    tokio::task::spawn_blocking(|| editor_icons(&paths::ui_static_dir().join("icons")))
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
 
-    Ok(Json(icons))
+fn editor_icons(root: &std::path::Path) -> std::io::Result<BTreeMap<String, Vec<String>>> {
+    let mut icons = BTreeMap::new();
+    let modules = match std::fs::read_dir(root) {
+        Ok(modules) => modules,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(icons),
+        Err(error) => return Err(error),
+    };
+    for module in modules {
+        let module = module?;
+        if !module.file_type()?.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        for file in std::fs::read_dir(module.path())? {
+            let file = file?;
+            let name = file.file_name();
+            if file.file_type()?.is_file()
+                && let Some(name) = name.to_str()
+                && !name.starts_with('.')
+                && matches!(name.rsplit_once('.'), Some((_, "svg" | "png" | "gif" | "jpg" | "jpeg")))
+            {
+                files.push(name.to_owned());
+            }
+        }
+        if !files.is_empty()
+            && let Ok(name) = module.file_name().into_string()
+            && !name.starts_with('.')
+        {
+            files.sort_unstable();
+            icons.insert(name, files);
+        }
+    }
+    Ok(icons)
+}
+
+#[cfg(test)]
+#[test]
+fn icon_index_matches_installed_files() {
+    let root = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+    assert!(editor_icons(&root).unwrap().is_empty());
+    for (module, name) in
+        [("node-red", "bridge.svg"), ("node-red", "alert.svg"), ("can", "port.png"), ("can", "LICENSE")]
+    {
+        let dir = root.join(module);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(name), []).unwrap();
+    }
+    let icons = editor_icons(&root).unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+    assert_eq!(icons["node-red"], ["alert.svg", "bridge.svg"]);
+    assert_eq!(icons["can"], ["port.png"]);
 }
 
 /// Get icon file
