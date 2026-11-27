@@ -642,3 +642,30 @@ async fn test_should_check_if_input_is_indeed_false() {
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0]["payload"], false.into());
 }
+
+#[test]
+fn typed_boolean_comparisons() {
+    let rules = SwitchNode::evalauate_rules(&json!([
+        {"t":"eq", "vt":"bool", "v":"false"},
+        {"t":"btwn", "vt":"bool", "v":false, "v2t":"bool", "v2":"true"}
+    ]))
+    .unwrap();
+    let RedPropertyValue::Constant(low) = &rules[0].value else { panic!("expected constant") };
+    let RedPropertyValue::Constant(high) = &rules[1].value2 else { panic!("expected constant") };
+    assert_eq!(low.as_bool(), Some(false));
+    assert_eq!(high.as_bool(), Some(true));
+    for (input, eq, between) in [
+        (json!(false), true, true),
+        (json!(0), true, true),
+        (json!(""), true, true),
+        (json!("0"), true, true),
+        (json!(true), false, true),
+        (json!("false"), false, false),
+        (json!(null), false, true),
+        (json!(2), false, false),
+    ] {
+        let a: Variant = serde_json::from_value(input).unwrap();
+        assert_eq!(rules[0].operator.apply(&a, low, high, false, &[]).unwrap(), eq);
+        assert_eq!(rules[1].operator.apply(&a, low, high, false, &[]).unwrap(), between);
+    }
+}

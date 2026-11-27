@@ -26,6 +26,7 @@ use crate::*;
 
 pub(crate) mod common_nodes;
 mod function_nodes;
+mod js_coercion;
 
 #[cfg(feature = "nodes_parser")]
 mod parser_nodes;

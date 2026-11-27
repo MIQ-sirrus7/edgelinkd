@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::str::FromStr;
@@ -9,6 +10,7 @@ use serde_with::rust::deserialize_ignore_any;
 use tokio::sync::RwLock;
 
 use crate::runtime::flow::Flow;
+use crate::runtime::nodes::js_coercion::js_number;
 use crate::runtime::nodes::*;
 use edgelink_macro::*;
 
@@ -159,16 +161,34 @@ where
     deserializer.deserialize_any(OperatorVisitor)
 }
 
+// Switch comparison rules use JavaScript's loose operators. The dedicated
+// "is true" and "is false" rules below intentionally require a Boolean.
+fn compare_rule_values(a: &Variant, b: &Variant) -> Option<Ordering> {
+    if a.is_bool() || b.is_bool() { js_number(Some(a)).partial_cmp(&js_number(Some(b))) } else { a.partial_cmp(b) }
+}
+
+fn equal_rule_values(a: &Variant, b: &Variant) -> bool {
+    if a.is_bool() || b.is_bool() {
+        !a.is_null() && !b.is_null() && compare_rule_values(a, b) == Some(Ordering::Equal)
+    } else {
+        a == b
+    }
+}
+
 impl SwitchRuleOperator {
     fn apply(&self, a: &Variant, b: &Variant, c: &Variant, case: bool, _parts: &[Variant]) -> crate::Result<bool> {
         match self {
-            Self::Equal => Ok(a == b),
-            Self::NotEqual => Ok(a != b),
-            Self::LessThan => Ok(a < b),
-            Self::LessThanEqual => Ok(a <= b),
-            Self::GreatThan => Ok(a > b),
-            Self::GreatThanEqual => Ok(a >= b),
-            Self::Between => Ok((a >= b && a <= c) || (a <= b && a >= c)),
+            Self::Equal => Ok(equal_rule_values(a, b)),
+            Self::NotEqual => Ok(!equal_rule_values(a, b)),
+            Self::LessThan => Ok(compare_rule_values(a, b).is_some_and(Ordering::is_lt)),
+            Self::LessThanEqual => Ok(compare_rule_values(a, b).is_some_and(Ordering::is_le)),
+            Self::GreatThan => Ok(compare_rule_values(a, b).is_some_and(Ordering::is_gt)),
+            Self::GreatThanEqual => Ok(compare_rule_values(a, b).is_some_and(Ordering::is_ge)),
+            Self::Between => {
+                let lower = compare_rule_values(a, b);
+                let upper = compare_rule_values(a, c);
+                Ok(lower.zip(upper).is_some_and(|(l, u)| (l.is_ge() && u.is_le()) || (l.is_le() && u.is_ge())))
+            }
             Self::Regex => match (a, b) {
                 (Variant::String(a), Variant::Regexp(b)) => Ok(b.is_match(a)),
                 (Variant::String(a), Variant::String(b)) => {
@@ -242,6 +262,9 @@ enum SwitchPropertyType {
     #[serde(rename = "num")]
     Num,
 
+    #[serde(rename = "bool")]
+    Bool,
+
     #[serde(rename = "jsonata")]
     Jsonata,
 
@@ -254,7 +277,7 @@ enum SwitchPropertyType {
 
 impl SwitchPropertyType {
     fn is_constant(&self) -> bool {
-        matches!(self, Self::Str | Self::Num | Self::Jsonata)
+        matches!(self, Self::Str | Self::Num | Self::Bool | Self::Jsonata)
     }
 }
 
@@ -267,6 +290,7 @@ impl TryFrom<SwitchPropertyType> for RedPropertyType {
             SwitchPropertyType::Flow => Ok(RedPropertyType::Flow),
             SwitchPropertyType::Global => Ok(RedPropertyType::Global),
             SwitchPropertyType::Str => Ok(RedPropertyType::Str),
+            SwitchPropertyType::Bool => Ok(RedPropertyType::Bool),
             SwitchPropertyType::Num => Ok(RedPropertyType::Num),
             SwitchPropertyType::Jsonata => Ok(RedPropertyType::Jsonata),
             SwitchPropertyType::Env => Ok(RedPropertyType::Env),
