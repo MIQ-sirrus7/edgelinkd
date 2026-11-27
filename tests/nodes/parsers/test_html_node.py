@@ -82,9 +82,16 @@ class TestHtmlNodeMultiple:
     @pytest.mark.skip(reason='multi output compatibility is implemented but needs a dedicated sequence assertion in the pytest bridge')
     @pytest.mark.it('should retrieve list contents as html as default with output as multiple msgs - alternative property')
     def test_multi_html_alt(self): pass
-    @pytest.mark.skip(reason='multi output compatibility is implemented but needs a dedicated sequence assertion in the pytest bridge')
+    @pytest.mark.asyncio
     @pytest.mark.it('should retrieve list contents as text with output as multiple msgs ')
-    def test_multi_text(self): pass
+    async def test_multi_text(self):
+        msgs = await run_single_node_with_msgs_ntimes(
+            {"type": "html", "tag": "li", "ret": "text", "as": "multi", "outproperty": "item"},
+            [{"payload": "<ul><li>ready</li><li></li><li>stopped</li></ul>", "topic": "line"}], 2)
+        assert [m["item"] for m in msgs] == ["ready", "stopped"]
+        assert [m["parts"]["index"] for m in msgs] == [0, 2]
+        assert all(m["parts"]["count"] == 3 and m["topic"] == "line" for m in msgs)
+        assert msgs[0]["parts"]["id"] == msgs[1]["parts"]["id"]
     @pytest.mark.skip(reason='multi output compatibility is implemented but needs a dedicated sequence assertion in the pytest bridge')
     @pytest.mark.it('should retrieve an attribute from a tag')
     def test_multi_attr(self): pass

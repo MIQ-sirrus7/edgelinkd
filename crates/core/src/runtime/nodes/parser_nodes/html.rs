@@ -114,8 +114,10 @@ impl HtmlNode {
             let id = guard.id().unwrap_or_else(crate::runtime::model::Msg::generate_id);
             let mut outputs = Vec::with_capacity(count);
             for (index, value) in values.into_iter().enumerate() {
-                let out = if index == 0 { msg.clone() } else { msg.deep_clone(true).await };
-                let mut out_guard = out.write().await;
+                if value.as_str() == Some("") {
+                    continue;
+                }
+                let mut out_guard = guard.clone();
                 out_guard.set_nav_stripped(outproperty, value, true)?;
                 let mut parts = BTreeMap::new();
                 parts.insert("id".to_string(), Variant::String(id.to_string()));
@@ -124,8 +126,7 @@ impl HtmlNode {
                 parts.insert("type".to_string(), Variant::String("string".to_string()));
                 parts.insert("ch".to_string(), Variant::String(String::new()));
                 out_guard.set("parts".to_string(), Variant::Object(parts));
-                drop(out_guard);
-                outputs.push(Envelope { port: 0, msg: out });
+                outputs.push(Envelope { port: 0, msg: MsgHandle::new(out_guard) });
             }
             drop(guard);
             self.fan_out_many(outputs.into_iter().collect(), CancellationToken::new()).await
