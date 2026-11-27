@@ -391,3 +391,20 @@ impl RedSystemSettings {
         Ok(settings)
     }
 }
+
+#[cfg(test)]
+mod editor_language_tests {
+    use super::*;
+
+    #[test]
+    fn configured_language_is_advertised_to_the_hosted_editor() {
+        for (config, expected) in [("", None), ("[ui-host]\neditor_language = 'en-US'", Some("en-US"))] {
+            let config = config::Config::builder()
+                .add_source(config::File::from_str(config, config::FileFormat::Toml))
+                .build()
+                .unwrap();
+            let settings = serde_json::to_value(RedSystemSettings::load(&config).unwrap()).unwrap();
+            assert_eq!(settings["editorTheme"]["lang"].as_str(), expected);
+        }
+    }
+}
