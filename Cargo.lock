@@ -2160,7 +2160,7 @@ dependencies = [
 [[package]]
 name = "node-red-contrib-socketcan-rs"
 version = "0.1.0"
-source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=12db1d153c033a8545f33a1e9d821863ce09e8c2#12db1d153c033a8545f33a1e9d821863ce09e8c2"
+source = "git+https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git?rev=35d09a48b345eb3b31b1353affac1b87a8ed664d#35d09a48b345eb3b31b1353affac1b87a8ed664d"
 dependencies = [
  "async-trait",
  "config",

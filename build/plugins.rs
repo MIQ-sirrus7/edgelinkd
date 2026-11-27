@@ -84,19 +84,7 @@ impl Plugin {
         let dir = root.join("nodes").join(&self.module);
         fs::create_dir(&dir).unwrap_or_else(|e| panic!("cannot stage plugin directory {dir:?}: {e}"));
         for file in &self.files {
-            let dest = dir.join(file.file_name().unwrap());
-            fs::copy(file, &dest).expect("copy external plugin asset");
-            if self.module == "node-red-contrib-socketcan" && dest.extension() == Some(OsStr::new("html")) {
-                let html = fs::read_to_string(&dest).expect("read SocketCAN editor definition");
-                fs::write(&dest, html.replace("\"bridge.png\"", "\"bridge.svg\""))
-                    .expect("stage SocketCAN icon reference");
-            }
-        }
-        if self.module == "node-red-contrib-socketcan" {
-            let icons = root.join("icons").join(&self.module);
-            fs::create_dir_all(&icons).expect("create SocketCAN icon directory");
-            fs::copy(root.join("icons/node-red/bridge.svg"), icons.join("bridge.svg"))
-                .expect("copy SocketCAN bridge icon");
+            fs::copy(file, dir.join(file.file_name().unwrap())).expect("copy external plugin asset");
         }
     }
 }

@@ -160,7 +160,7 @@ edgelink-nodes-cbor = { path = "node-plugins/edgelink-nodes-cbor", optional = tr
 edgelink-web = { path = "crates/web", default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-node-red-contrib-socketcan-rs = { git = "https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git", rev = "12db1d153c033a8545f33a1e9d821863ce09e8c2", optional = true }
+node-red-contrib-socketcan-rs = { git = "https://github.com/MIQ-sirrus7/node-red-contrib-socketcan-rs.git", rev = "35d09a48b345eb3b31b1353affac1b87a8ed664d", optional = true }
 
 # External plugins must register nodes in this daemon's copy of the core.
 [patch."https://github.com/MIQ-sirrus7/edgelinkd-internal"]
