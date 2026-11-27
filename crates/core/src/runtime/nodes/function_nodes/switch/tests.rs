@@ -679,6 +679,7 @@ fn scalar_comparisons_follow_js_number_conversion() {
         assert!(equal_rule_values(&s, &n));
     }
     assert!(!equal_rule_values(&Variant::Null, &Variant::from(0_i64)));
+    assert_eq!(compare_rule_values(&Variant::Null, &Variant::from("0")), Some(Ordering::Equal));
     assert_eq!(compare_rule_values(&Variant::from("missing"), &n), None);
     assert_eq!(compare_rule_values(&Variant::from("10"), &Variant::from("2")), Some(Ordering::Less));
 }

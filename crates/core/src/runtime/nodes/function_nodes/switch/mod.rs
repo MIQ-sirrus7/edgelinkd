@@ -167,7 +167,7 @@ fn compare_rule_values(a: &Variant, b: &Variant) -> Option<Ordering> {
     if let (Some(left), Some(right)) = (a.as_str(), b.as_str()) {
         return Some(left.encode_utf16().cmp(right.encode_utf16()));
     }
-    if a.is_bool() || b.is_bool() || a.is_number() || b.is_number() {
+    if a.is_bool() || b.is_bool() || a.is_number() || b.is_number() || a.is_null() || b.is_null() {
         return js_number(Some(a)).partial_cmp(&js_number(Some(b)));
     }
     a.partial_cmp(b)
