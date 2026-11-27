@@ -345,11 +345,6 @@ class TestCsvNodeLegacyMode:
 
     @pytest.mark.describe('json object to csv')
     class TestJsonObjectToCsv:
-        # Some of the conversions below take their column names *and their order* from the object
-        # itself. Node-RED renders them in insertion order; this runtime keeps message properties in
-        # a sorted map (`VariantObjectMap`), so those cells follow the sorted names instead, and the
-        # upstream expectation is noted next to each assertion.
-
         @pytest.mark.asyncio
         @pytest.mark.it('should convert a simple object back to a csv')
         async def test_should_convert_a_simple_object_back_to_a_csv(self):
@@ -359,10 +354,7 @@ class TestCsvNodeLegacyMode:
             ])
             assert msgs[0]["payload"] == '4,foo,true,,0,"Hello\nWorld",,,undefined,null,null\n'
 
-        # The four conversions below take their column names *and their order* from the object
-        # itself. Node-RED renders them in insertion order; this runtime keeps message properties in
-        # a sorted map (`VariantObjectMap`), so the cells follow the sorted names instead. Upstream's
-        # expected strings are noted with each test.
+        # Without a template, EdgeLinkd keeps implicit CSV columns in alphabetical order.
         @pytest.mark.asyncio
         @pytest.mark.it('should convert a simple object back to a csv with no template')
         async def test_should_convert_a_simple_object_back_to_a_csv_with_no_template(self):
@@ -924,10 +916,7 @@ class TestCsvNodeRfcMode:
         @pytest.mark.asyncio
         @pytest.mark.it('should convert a simple object back to a csv with no template')
         async def test_should_convert_a_simple_object_back_to_a_csv_with_no_template(self):
-            # Two differences from upstream's expectation, both in the runtime rather than in the
-            # encoder: this runtime's message objects are sorted maps, so the cells follow the sorted
-            # property names instead of JavaScript's insertion order, and a JSON message has no
-            # `undefined` for the `e` property (a missing key is not a column here at all).
+            # Implicit columns are alphabetical. A missing JS undefined property has no JSON column.
             message = {"payload": {"d": 1, "b": "foo", "c": 'ba"r', "a": "di,ng", "f": "undefined",
                                    "g": None, "h": "null"}}
             msgs = await _csv_rfc({"temp": ""}, message)
@@ -984,7 +973,7 @@ class TestCsvNodeRfcMode:
         @pytest.mark.asyncio
         @pytest.mark.it('should convert an array of objects to a multi-line csv without a template')
         async def test_should_convert_an_array_of_objects_to_a_multi_line_csv_without_a_template(self):
-            # The template comes from the first row's property names, which this runtime keeps sorted.
+            # The template comes from the first row's property names, in alphabetical order.
             msgs = await _csv_rfc({"temp": "", "ret": "\n"},
                                   {"payload": [{"d": 1, "b": 3, "c": 2, "a": 4}, {"d": 4, "a": 1, "c": 3, "b": 2}]})
             assert msgs[0]["payload"] == "4,3,2,1\n1,2,3,4\n"

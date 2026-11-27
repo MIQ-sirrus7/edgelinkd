@@ -391,7 +391,7 @@ impl CsvNode {
             && self.config.hdrout != CsvHeaderMode::None
             && let Some(Variant::Object(first)) = items.first()
         {
-            template = first.keys().map(|k| Some(k.clone())).collect();
+            template = column_keys(first).into_iter().cloned().map(Some).collect();
         }
         let template_is_empty = template.is_empty();
         let flat_row = matches!(items.first(), Some(first) if !matches!(first, Variant::Object(_) | Variant::Array(_)));
@@ -409,7 +409,7 @@ impl CsvNode {
                     Variant::Object(obj) => {
                         if template_is_empty {
                             if header_template.is_empty() {
-                                header_template = obj.keys().map(|k| Some(k.clone())).collect();
+                                header_template = column_keys(obj).into_iter().cloned().map(Some).collect();
                             }
                             rows.push(self.format_csv_object_values(obj));
                         } else {
@@ -435,10 +435,11 @@ impl CsvNode {
     /// One row rendered from the object's own keys: object-typed values (`null`, objects, arrays)
     /// are dropped, which is what Node-RED's `typeof value !== "object"` check does.
     fn format_csv_object_values(&self, obj: &VariantObjectMap) -> String {
-        let values: Vec<Variant> = obj
-            .iter()
-            .filter(|(_, value)| !matches!(value, Variant::Object(_) | Variant::Array(_) | Variant::Null))
-            .map(|(_, value)| value.clone())
+        let values: Vec<Variant> = column_keys(obj)
+            .into_iter()
+            .map(|key| &obj[key])
+            .filter(|value| !matches!(value, Variant::Object(_) | Variant::Array(_) | Variant::Null))
+            .cloned()
             .collect();
         self.format_csv_line(&values)
     }
@@ -1319,9 +1320,18 @@ fn classify_rfc_payload(payload: &Variant) -> (Vec<Variant>, RfcRowKind) {
     }
 }
 
-/// `Object.keys()` of a value that may not be an object.
+// Preserve implicit CSV column order for existing flows when message object storage changes.
+fn column_keys(object: &VariantObjectMap) -> Vec<&String> {
+    let mut keys: Vec<_> = object.keys().collect();
+    keys.sort_unstable();
+    keys
+}
+
 fn object_keys(value: Option<&Variant>) -> Vec<String> {
-    value.and_then(|value| value.as_object()).map(|object| object.keys().cloned().collect()).unwrap_or_default()
+    value
+        .and_then(Variant::as_object)
+        .map(|object| column_keys(object).into_iter().cloned().collect())
+        .unwrap_or_default()
 }
 
 /// `RED.util.ensureString()`: a Buffer is its text, an object its JSON text (`null` included), a
