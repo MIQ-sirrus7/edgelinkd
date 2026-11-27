@@ -383,6 +383,27 @@ mod tests {
         assert_eq!(msg["topic"], "greeting".into());
     }
 
+    #[tokio::test]
+    async fn renders_array_indexes_and_iterates_the_same_array() {
+        let flows = json!([
+            {"id":"100", "type":"tab"},
+            {"id":"1", "z":"100", "type":"template", "wires":[["2"]],
+             "template":"{{n}}/{{payload.0}}/{{payload.1.0}}/{{payload.12}}/{{payload.01}}/{{map.01}}/{{#payload.1}}[{{.}}]{{/payload.1}}"},
+            {"id":"2", "z":"100", "type":"test-once"}
+        ]);
+        let input = json!([["1", {"n":0, "payload":[0, ["a","b"]], "map":{"01":"key"}}]]);
+        let engine = crate::runtime::engine::build_test_engine(flows).unwrap();
+        let messages = engine
+            .run_once_with_inject(
+                1,
+                std::time::Duration::from_secs(1),
+                Vec::<(ElementId, Msg)>::deserialize(input).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(messages[0]["payload"], "0/0/a///key/[a][b]".into());
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_template_node_json_output() {
         let flows_json = json!([

@@ -165,6 +165,7 @@ edgelink-web = { path = "crates/web", default-features = true }
 chrono = { workspace = true }
 
 [workspace]
+exclude = ["3rd-party/rust-mustache"]
 members = ["crates/*", "node-plugins/*"]
 resolver = "2"
 
