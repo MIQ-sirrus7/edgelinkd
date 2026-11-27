@@ -121,7 +121,7 @@ impl UdpInNode {
             }
         };
 
-        let mut body = std::collections::BTreeMap::new();
+        let mut body = crate::runtime::model::VariantObjectMap::new();
         body.insert("payload".to_string(), payload);
         body.insert("fromip".to_string(), Variant::String(format!("{}:{}", remote_addr.ip(), remote_addr.port())));
         body.insert("ip".to_string(), Variant::String(remote_addr.ip().to_string()));

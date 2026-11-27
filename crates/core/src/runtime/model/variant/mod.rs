@@ -1,6 +1,5 @@
 use core::fmt::{self, Debug};
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use regex::Regex;
@@ -50,7 +49,6 @@ pub struct UndefinableVariant(pub Option<Variant>);
 /// # Examples
 ///
 /// ```rust
-/// use std::collections::BTreeMap;
 /// use edgelink_core::runtime::model::Variant;
 ///
 /// // Create a null variant
@@ -687,7 +685,13 @@ impl PartialOrd for Variant {
             (Variant::Date(a), Variant::Date(b)) => a.partial_cmp(b),
             (Variant::Bytes(a), Variant::Bytes(b)) => a.partial_cmp(b),
             (Variant::Array(a), Variant::Array(b)) => a.partial_cmp(b),
-            (Variant::Object(a), Variant::Object(b)) => a.partial_cmp(b),
+            (Variant::Object(a), Variant::Object(b)) => {
+                let mut left: Vec<_> = a.iter().collect();
+                let mut right: Vec<_> = b.iter().collect();
+                left.sort_unstable_by_key(|(k, _)| *k);
+                right.sort_unstable_by_key(|(k, _)| *k);
+                left.partial_cmp(&right)
+            }
 
             // TODO FIXME:
             // I am unsure whether it is reasonable to implement weak typing/implicit type conversion comparison here...

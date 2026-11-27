@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use crate::runtime::model::VariantObjectMap;
 use std::io::Cursor;
 use std::sync::Arc;
 
@@ -228,14 +228,14 @@ impl XmlNode {
     fn write_object_to_xml<W: std::io::Write>(
         &self,
         writer: &mut Writer<W>,
-        obj: &BTreeMap<String, Variant>,
+        obj: &VariantObjectMap,
         options: &Xml2jsOptions,
     ) -> crate::Result<()> {
         for (key, value) in obj {
             match value {
                 Variant::Array(arr) => {
                     for item in arr {
-                        let mut single = BTreeMap::new();
+                        let mut single = VariantObjectMap::new();
                         single.insert(key.clone(), item.clone());
                         self.write_object_to_xml(writer, &single, options)?;
                     }
@@ -259,7 +259,7 @@ impl XmlNode {
                     }
                     for (child_key, child_value) in inner_obj {
                         if *child_key != options.attrkey && *child_key != options.charkey {
-                            let mut single = BTreeMap::new();
+                            let mut single = VariantObjectMap::new();
                             single.insert(child_key.clone(), child_value.clone());
                             self.write_object_to_xml(writer, &single, options)?;
                         }

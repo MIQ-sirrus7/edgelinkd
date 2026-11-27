@@ -426,3 +426,21 @@ async def test_schema_property_names_do_not_become_schema_keywords():
     ], 1)
     assert msgs[0]["payload"] == value
     assert "schema" not in msgs[0]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("pretty", [True, False])
+async def test_json_stringify_uses_js_key_order_and_indent(pretty):
+    from tests import run_flow_with_msgs_ntimes
+    flow = [
+        {"id": "0", "type": "tab"},
+        {"id": "1", "z": "0", "type": "json", "action": "obj", "wires": [["2"]]},
+        {"id": "2", "z": "0", "type": "json", "action": "str", "pretty": pretty, "wires": [["3"]]},
+        {"id": "3", "z": "0", "type": "test-once"}
+    ]
+    import json
+    original = '{"z":0,"10":false,"01":"first","2":true,"a":{"last":0,"first":1}}'
+    ordered = {"2": True, "10": False, "z": 0, "01": "first", "a": {"last": 0, "first": 1}}
+    expected = json.dumps(ordered, indent=4) if pretty else json.dumps(ordered, separators=(",", ":"))
+    result = await run_flow_with_msgs_ntimes(flow, [{"payload": original}], 1)
+    assert result[0]["payload"] == expected

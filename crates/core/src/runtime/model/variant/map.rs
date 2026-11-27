@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use super::*;
 
-pub type VariantObjectMap = BTreeMap<String, Variant>;
+pub type VariantObjectMap = indexmap::IndexMap<String, Variant>;
 
 pub trait VariantObject {
     fn contains_property(&self, prop: &str) -> bool;
@@ -181,7 +181,7 @@ impl VariantObject for VariantObjectMap {
     }
 
     fn remove_property(&mut self, prop: &str) -> Option<Variant> {
-        self.remove(prop)
+        self.shift_remove(prop)
     }
 
     /// Remove the value of a navigation property.
@@ -207,7 +207,7 @@ impl VariantObject for VariantObjectMap {
         // Handle the parsed segments.
         match segs {
             // If there's only one segment, remove the property directly.
-            [PropexSegment::Property(first_prop_name)] => self.remove(first_prop_name.as_ref()),
+            [PropexSegment::Property(first_prop_name)] => self.shift_remove(first_prop_name.as_ref()),
 
             // If there are multiple segments, navigate through the nested structure.
             [PropexSegment::Property(first_prop_name), rest @ ..] => {
@@ -217,7 +217,7 @@ impl VariantObject for VariantObjectMap {
                 // Remove the value based on the type of the last segment.
                 match (prop_tail, segs.last()?) {
                     (Variant::Object(tail_map), PropexSegment::Property(tail_seg)) => {
-                        tail_map.remove(tail_seg.as_ref())
+                        tail_map.shift_remove(tail_seg.as_ref())
                     }
                     (Variant::Array(tail_arr), PropexSegment::Index(tail_index)) => Some(tail_arr.remove(*tail_index)),
                     _ => None,

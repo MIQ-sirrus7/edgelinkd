@@ -130,7 +130,13 @@ impl<'js> js::IntoJs<'js> for Variant {
 
             Variant::Null => Ok(js::Value::new_null(ctx.clone())),
 
-            Variant::Object(map) => map.into_js(ctx),
+            Variant::Object(map) => {
+                let object = js::Object::new(ctx.clone())?;
+                for (key, value) in map {
+                    object.set(key, value)?;
+                }
+                Ok(object.into_value())
+            }
 
             Variant::String(s) => s.into_js(ctx),
 

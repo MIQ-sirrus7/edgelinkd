@@ -103,7 +103,7 @@ impl TcpInNode {
             }
         };
 
-        let mut body = std::collections::BTreeMap::new();
+        let mut body = crate::runtime::model::VariantObjectMap::new();
         body.insert("payload".to_string(), payload);
 
         if let Some(topic) = &self.config.topic {
@@ -114,7 +114,7 @@ impl TcpInNode {
         body.insert("port".to_string(), Variant::Number(serde_json::Number::from(remote_addr.port())));
 
         // Add session information for connection tracking
-        let mut session = std::collections::BTreeMap::new();
+        let mut session = crate::runtime::model::VariantObjectMap::new();
         session.insert("type".to_string(), Variant::String("tcp".to_string()));
         session.insert("id".to_string(), Variant::String(session_id));
         body.insert("_session".to_string(), Variant::Object(session));

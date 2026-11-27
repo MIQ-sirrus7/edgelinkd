@@ -223,7 +223,7 @@ impl WebSocketInNode {
     }
 
     async fn send_output_message(&self, payload: Variant, stop_token: CancellationToken) -> crate::Result<()> {
-        let mut body = std::collections::BTreeMap::new();
+        let mut body = crate::runtime::model::VariantObjectMap::new();
 
         if self.config.wholemsg {
             // Send the entire message structure

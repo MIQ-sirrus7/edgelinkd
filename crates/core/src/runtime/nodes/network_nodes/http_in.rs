@@ -121,13 +121,13 @@ impl HttpInNode {
         remote_addr: Option<String>,
         msg_id: String,
     ) -> MsgHandle {
-        let mut msg_body = std::collections::BTreeMap::new();
+        let mut msg_body = crate::runtime::model::VariantObjectMap::new();
 
         // Generate message ID
         msg_body.insert("_msgid".to_string(), Variant::String(msg_id.clone()));
 
         // Create request object
-        let mut req = std::collections::BTreeMap::new();
+        let mut req = crate::runtime::model::VariantObjectMap::new();
 
         // Add method and URL
         req.insert("method".to_string(), Variant::String(method.to_string()));
@@ -146,8 +146,8 @@ impl HttpInNode {
                 msg_body.insert("payload".to_string(), query_variant.clone());
                 req.insert("query".to_string(), query_variant);
             } else {
-                msg_body.insert("payload".to_string(), Variant::Object(std::collections::BTreeMap::new()));
-                req.insert("query".to_string(), Variant::Object(std::collections::BTreeMap::new()));
+                msg_body.insert("payload".to_string(), Variant::Object(crate::runtime::model::VariantObjectMap::new()));
+                req.insert("query".to_string(), Variant::Object(crate::runtime::model::VariantObjectMap::new()));
             }
         } else {
             // For POST, PUT, PATCH, DELETE - use body as payload
@@ -191,7 +191,7 @@ impl HttpInNode {
         msg_body.insert("req".to_string(), Variant::Object(req));
 
         // Create response placeholder that will be used by http out node
-        let mut res = std::collections::BTreeMap::new();
+        let mut res = crate::runtime::model::VariantObjectMap::new();
         res.insert("_msgid".to_string(), Variant::String(msg_id));
         res.insert("_node_id".to_string(), Variant::String(self.base.id.to_string()));
         res.insert("statusCode".to_string(), Variant::Number(serde_json::Number::from(200)));
@@ -224,7 +224,7 @@ impl HttpInNode {
                 Variant::Array(variants)
             }
             Value::Object(obj) => {
-                let mut map = std::collections::BTreeMap::new();
+                let mut map = crate::runtime::model::VariantObjectMap::new();
                 for (k, v) in obj {
                     map.insert(k, Self::json_value_to_variant(v));
                 }

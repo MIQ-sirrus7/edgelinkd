@@ -283,7 +283,7 @@ impl TcpGetNode {
                 // it arrives, without splitting or trimming it.
                 let result = String::from_utf8_lossy(data).to_string();
                 let original_guard = original_msg.read().await;
-                let mut body = std::collections::BTreeMap::new();
+                let mut body = crate::runtime::model::VariantObjectMap::new();
                 for (key, value) in original_guard.as_variant_object().iter() {
                     body.insert(key.clone(), value.clone());
                 }
@@ -295,7 +295,7 @@ impl TcpGetNode {
                 // Return as array of numbers (like Node.js Buffer)
                 let bytes: Vec<Variant> = data.iter().map(|&b| Variant::Number(serde_json::Number::from(b))).collect();
                 let original_guard = original_msg.read().await;
-                let mut body = std::collections::BTreeMap::new();
+                let mut body = crate::runtime::model::VariantObjectMap::new();
                 for (key, value) in original_guard.as_variant_object().iter() {
                     body.insert(key.clone(), value.clone());
                 }
@@ -578,7 +578,7 @@ impl TcpGetNode {
                                     let out = parts[0].to_string();
                                     let (msg, stop_token) = &pending_msgs[0];
                                     let original_guard = msg.read().await;
-                                    let mut body = std::collections::BTreeMap::new();
+                                    let mut body = crate::runtime::model::VariantObjectMap::new();
                                     for (key, value) in original_guard.as_variant_object().iter() {
                                         body.insert(key.clone(), value.clone());
                                     }
@@ -759,7 +759,7 @@ impl TcpGetNode {
                                 payload.push_str(newline);
                             }
                             let original_guard = msg.read().await;
-                            let mut body = std::collections::BTreeMap::new();
+                            let mut body = crate::runtime::model::VariantObjectMap::new();
                             for (key, value) in original_guard.as_variant_object().iter() {
                                 body.insert(key.clone(), value.clone());
                             }

@@ -182,8 +182,8 @@ fn yaml_value_to_variant(yaml_value: yaml::Value) -> Variant {
             Variant::Array(variants)
         }
         yaml::Value::Mapping(map) => {
-            use std::collections::BTreeMap;
-            let mut btree_map = BTreeMap::new();
+            use crate::runtime::model::VariantObjectMap;
+            let mut btree_map = VariantObjectMap::new();
             for (k, v) in map {
                 let key = match k {
                     yaml::Value::String(s) => s,

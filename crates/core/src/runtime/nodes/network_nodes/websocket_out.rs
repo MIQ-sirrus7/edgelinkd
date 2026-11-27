@@ -187,7 +187,7 @@ impl WebSocketOutNode {
                 .map(str::to_owned);
             let payload = if endpoint.wholemsg() {
                 let mut body = msg_guard.as_variant_object().clone();
-                body.remove("_session");
+                body.shift_remove("_session");
                 Variant::Object(body)
             } else {
                 msg_guard.get("payload").cloned().unwrap_or(Variant::Null)

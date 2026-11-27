@@ -1,10 +1,10 @@
 // Licensed under the Apache License, Version 2.0
 // Based on Node-RED 4.0.9's 17-split.js.
 use crate::runtime::flow::Flow;
+use crate::runtime::model::VariantObjectMap;
 use crate::runtime::nodes::*;
 use edgelink_macro::*;
 use serde::Deserialize;
-use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -126,7 +126,7 @@ impl SplitNode {
     }
 
     fn prepare_parts(&self, msg: &mut Msg, kind: &str) {
-        let mut parts = BTreeMap::new();
+        let mut parts = VariantObjectMap::new();
         if let Some(previous) = msg.get("parts").cloned() {
             parts.insert("parts".into(), previous);
         }

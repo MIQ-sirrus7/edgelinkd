@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use crate::runtime::model::VariantObjectMap;
 use std::sync::Arc;
 
 use scraper::{ElementRef, Html, Selector};
@@ -76,7 +76,7 @@ impl HtmlNode {
                 element.value().attrs().map(|(k, v)| (k.to_string(), Variant::String(v.to_string()))).collect(),
             ),
             HtmlReturn::Compl => {
-                let mut obj: BTreeMap<String, Variant> =
+                let mut obj: VariantObjectMap =
                     element.value().attrs().map(|(k, v)| (k.to_string(), Variant::String(v.to_string()))).collect();
                 obj.insert(chr.to_string(), Variant::String(element.inner_html().trim().to_string()));
                 Variant::Object(obj)
@@ -117,7 +117,7 @@ impl HtmlNode {
                 let out = if index == 0 { msg.clone() } else { msg.deep_clone(true).await };
                 let mut out_guard = out.write().await;
                 out_guard.set_nav_stripped(outproperty, value, true)?;
-                let mut parts = BTreeMap::new();
+                let mut parts = VariantObjectMap::new();
                 parts.insert("id".to_string(), Variant::String(id.to_string()));
                 parts.insert("index".to_string(), Variant::Number(serde_json::Number::from(index)));
                 parts.insert("count".to_string(), Variant::Number(serde_json::Number::from(count)));

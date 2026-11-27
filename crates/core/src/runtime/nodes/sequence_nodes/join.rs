@@ -1,10 +1,11 @@
 // Licensed under the Apache License, Version 2.0
 // Based on Node-RED 4.0.9's 17-split.js (JoinNode).
 use crate::runtime::flow::Flow;
+use crate::runtime::model::VariantObjectMap;
 use crate::runtime::nodes::*;
 use edgelink_macro::*;
 use serde::Deserialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 
@@ -75,7 +76,7 @@ struct JoinGroup {
     count: usize,
     current_count: usize,
     slots: Vec<Option<Variant>>,
-    object: BTreeMap<String, Variant>,
+    object: VariantObjectMap,
     joiner: Option<Variant>,
     array_length: usize,
     deadline: Option<Instant>,
@@ -376,7 +377,7 @@ impl JoinNode {
             count: 0,
             current_count: 0,
             slots: vec![],
-            object: BTreeMap::new(),
+            object: VariantObjectMap::new(),
             joiner: None,
             array_length: 1,
             deadline: None,
@@ -527,7 +528,7 @@ impl JoinNode {
             },
             current_count: 0,
             slots: vec![],
-            object: BTreeMap::new(),
+            object: VariantObjectMap::new(),
             joiner: if auto { parts.and_then(|p| p.get("ch")).cloned() } else { Some(self.joiner.clone()) },
             array_length: if auto {
                 parts.and_then(|p| p.get("len")).and_then(Variant::as_u64).unwrap_or(1) as usize

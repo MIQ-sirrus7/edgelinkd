@@ -357,7 +357,7 @@ impl MqttInNode {
                 Variant::Array(variants)
             }
             serde_json::Value::Object(obj) => {
-                let map: std::collections::BTreeMap<String, Variant> =
+                let map: crate::runtime::model::VariantObjectMap =
                     obj.into_iter().map(|(k, v)| (k, Self::json_value_to_variant(v))).collect();
                 Variant::Object(map)
             }
@@ -486,7 +486,7 @@ impl MqttInNode {
                     let sub_list: Vec<Variant> = subs
                         .values()
                         .map(|s| {
-                            let mut sub_obj = std::collections::BTreeMap::new();
+                            let mut sub_obj = crate::runtime::model::VariantObjectMap::new();
                             sub_obj.insert("topic".to_string(), Variant::String(s.topic.clone()));
                             sub_obj.insert("qos".to_string(), Variant::Number(serde_json::Number::from(s.qos as u8)));
                             Variant::Object(sub_obj)
@@ -513,7 +513,7 @@ impl MqttInNode {
                     let sub_list: Vec<Variant> = subs
                         .values()
                         .map(|s| {
-                            let mut sub_obj = std::collections::BTreeMap::new();
+                            let mut sub_obj = crate::runtime::model::VariantObjectMap::new();
                             sub_obj.insert("topic".to_string(), Variant::String(s.topic.clone()));
                             sub_obj.insert("qos".to_string(), Variant::Number(serde_json::Number::from(s.qos as u8)));
                             Variant::Object(sub_obj)
@@ -529,7 +529,7 @@ impl MqttInNode {
                     let sub_list: Vec<Variant> = subs
                         .values()
                         .map(|s| {
-                            let mut sub_obj = std::collections::BTreeMap::new();
+                            let mut sub_obj = crate::runtime::model::VariantObjectMap::new();
                             sub_obj.insert("topic".to_string(), Variant::String(s.topic.clone()));
                             sub_obj.insert("qos".to_string(), Variant::Number(serde_json::Number::from(s.qos as u8)));
                             Variant::Object(sub_obj)

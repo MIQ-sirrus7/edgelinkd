@@ -34,7 +34,7 @@
 //! - Multi-part message handling
 //! - Number parsing and type conversion
 
-use std::collections::BTreeMap;
+use crate::runtime::model::VariantObjectMap;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -580,7 +580,7 @@ impl CsvNode {
             }
 
             // Use template to create object
-            let mut obj = BTreeMap::new();
+            let mut obj = VariantObjectMap::new();
             for (i, value) in fields.iter().enumerate() {
                 if i >= template.len() {
                     continue;
@@ -810,7 +810,7 @@ impl CsvNode {
                                             }
                                         }
                                         None => {
-                                            let mut parts = BTreeMap::new();
+                                            let mut parts = VariantObjectMap::new();
                                             parts.insert("id".to_string(), Variant::String(msg_id.clone()));
                                             parts.insert("index".to_string(), Variant::Number(Number::from(i as u64)));
                                             parts.insert(
@@ -1249,7 +1249,7 @@ impl CsvNode {
                     individual_msg.set("parts".to_string(), Variant::Object(parts));
                 }
                 None => {
-                    let mut parts = BTreeMap::new();
+                    let mut parts = VariantObjectMap::new();
                     parts.insert("id".to_string(), Variant::String(msg_id.clone()));
                     parts.insert("index".to_string(), Variant::Number(Number::from(index as u64)));
                     parts.insert("count".to_string(), Variant::Number(Number::from(count as u64)));

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use crate::runtime::model::VariantObjectMap;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -141,7 +141,7 @@ impl FileInNode {
             std::io::ErrorKind::AlreadyExists => "EEXIST",
             _ => "UNKNOWN",
         };
-        let mut error = BTreeMap::new();
+        let mut error = VariantObjectMap::new();
         error.insert("code".to_string(), Variant::String(code.to_string()));
         error.insert("message".to_string(), Variant::String(err.to_string()));
         error.insert("errno".to_string(), Variant::Number(Number::from(err.raw_os_error().unwrap_or(0))));
@@ -190,7 +190,7 @@ impl FileInNode {
 
     fn part_metadata(&self, index: usize, ch: &str, type_: &str, msg: &Msg, count: Option<usize>) -> Variant {
         let msg_id = msg.get("_msgid").and_then(|value| value.as_str()).unwrap_or("").to_string();
-        let mut parts = BTreeMap::new();
+        let mut parts = VariantObjectMap::new();
         parts.insert("index".to_string(), Variant::Number(Number::from(index as u64)));
         parts.insert("ch".to_string(), Variant::String(ch.to_string()));
         parts.insert("type".to_string(), Variant::String(type_.to_string()));

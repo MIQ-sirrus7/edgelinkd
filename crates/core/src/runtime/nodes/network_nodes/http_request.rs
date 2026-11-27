@@ -590,7 +590,7 @@ impl HttpRequestNode {
         }
     }
 
-    fn build_cookie_header(&self, cookies: &std::collections::BTreeMap<String, Variant>) -> String {
+    fn build_cookie_header(&self, cookies: &crate::runtime::model::VariantObjectMap) -> String {
         let mut cookie_parts = Vec::new();
 
         for (name, value) in cookies {
@@ -672,7 +672,7 @@ impl HttpRequestNode {
         msg_guard.set("statusCode".to_string(), Variant::Number(serde_json::Number::from(response.status_code)));
 
         // Convert headers
-        let mut headers_obj = std::collections::BTreeMap::new();
+        let mut headers_obj = crate::runtime::model::VariantObjectMap::new();
         for (key, value) in response.headers {
             headers_obj.insert(key, Variant::String(value));
         }
@@ -704,7 +704,7 @@ impl HttpRequestNode {
                 // Try to parse as JSON
                 if response.status_code == 204 {
                     // No content - return empty object
-                    Variant::Object(std::collections::BTreeMap::new())
+                    Variant::Object(crate::runtime::model::VariantObjectMap::new())
                 } else {
                     match String::from_utf8(response.body.clone()) {
                         Ok(text) => match serde_json::from_str::<serde_json::Value>(&text) {
@@ -772,7 +772,7 @@ impl HttpRequestNode {
                 Variant::Array(variants)
             }
             serde_json::Value::Object(obj) => {
-                let mut map = std::collections::BTreeMap::new();
+                let mut map = crate::runtime::model::VariantObjectMap::new();
                 for (k, v) in obj {
                     map.insert(k, Self::json_value_to_variant(v));
                 }

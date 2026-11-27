@@ -136,7 +136,7 @@ impl WatchNode {
     }
 
     fn create_message(&self, file_event: FileEvent) -> MsgHandle {
-        let mut body = std::collections::BTreeMap::new();
+        let mut body = crate::runtime::model::VariantObjectMap::new();
 
         // Set payload to the full file path
         body.insert("payload".to_string(), Variant::String(file_event.file_path.clone()));

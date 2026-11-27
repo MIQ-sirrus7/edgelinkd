@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use crate::runtime::model::VariantObjectMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -146,7 +146,7 @@ impl InjectNode {
     }
 
     async fn inject_msg(&self, stop_token: CancellationToken) -> crate::Result<()> {
-        let mut msg_body: BTreeMap<String, Variant> = BTreeMap::new();
+        let mut msg_body: VariantObjectMap = VariantObjectMap::new();
         for prop in self.config.props.iter() {
             let k = prop.p.to_string();
             // Node-RED evaluates every property against the message being built, so a JSONata

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use crate::runtime::model::VariantObjectMap;
 use std::fmt;
 use std::ops::{Index, IndexMut};
 #[cfg(feature = "js")]
@@ -32,7 +32,7 @@ pub struct Envelope {
     pub msg: MsgHandle,
 }
 
-pub type MsgBody = BTreeMap<String, Variant>;
+pub type MsgBody = VariantObjectMap;
 
 #[derive(Debug, Clone)]
 pub struct MsgHandle {
@@ -263,7 +263,7 @@ impl<'de> serde::Deserialize<'de> for Msg {
                 V: serde::de::MapAccess<'de>,
             {
                 let mut link_call_stack = None;
-                let mut body: BTreeMap<String, Variant> = BTreeMap::new();
+                let mut body: VariantObjectMap = VariantObjectMap::new();
 
                 while let Some(key) = map.next_key::<String>()? {
                     match key.as_str() {
@@ -295,7 +295,7 @@ impl<'js> js::FromJs<'js> for Msg {
         match jv.type_of() {
             js::Type::Object => {
                 if let Some(jo) = jv.as_object() {
-                    let mut body = BTreeMap::new();
+                    let mut body = VariantObjectMap::new();
                     for result in jo.props::<String, js::Value>() {
                         match result {
                             Ok((ref k, v)) => match k.as_str() {
@@ -373,7 +373,7 @@ impl<'js> js::IntoJs<'js> for Msg {
 impl Default for MsgHandle {
     fn default() -> Self {
         let msg = Msg {
-            body: Variant::Object(BTreeMap::from([
+            body: Variant::Object(VariantObjectMap::from([
                 (wellknown::MSG_ID_PROPERTY.to_string(), Msg::generate_id_variant()),
                 ("payload".to_owned(), Variant::Null),
             ])),
@@ -388,8 +388,8 @@ impl MsgHandle {
         MsgHandle { inner: (Arc::new(RwLock::new(inner))) }
     }
 
-    pub fn with_properties(props: BTreeMap<String, Variant>) -> Self {
-        let msg = Msg { link_call_stack: None, body: Variant::Object(props) };
+    pub fn with_properties(props: impl IntoIterator<Item = (String, Variant)>) -> Self {
+        let msg = Msg { link_call_stack: None, body: Variant::Object(props.into_iter().collect()) };
         MsgHandle::new(msg)
     }
 
@@ -401,7 +401,7 @@ impl MsgHandle {
     pub fn with_payload(payload: Variant) -> Self {
         let msg = Msg {
             link_call_stack: None,
-            body: Variant::Object(BTreeMap::from([
+            body: Variant::Object(VariantObjectMap::from([
                 (wellknown::MSG_ID_PROPERTY.to_string(), Msg::generate_id_variant()),
                 ("payload".to_owned(), payload),
             ])),

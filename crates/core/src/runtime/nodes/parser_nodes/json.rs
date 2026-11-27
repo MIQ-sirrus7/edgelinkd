@@ -269,8 +269,13 @@ impl JsonNode {
         }
         let json_value = variant_to_json_value(value);
         let json_string = if self.config.pretty {
-            serde_json::to_string_pretty(&json_value)
-                .map_err(|e| crate::EdgelinkError::InvalidOperation(format!("JSON stringify error: {e}")))?
+            let mut bytes = Vec::new();
+            let formatter = serde_json::ser::PrettyFormatter::with_indent(b"    ");
+            serde::Serialize::serialize(
+                &json_value,
+                &mut serde_json::Serializer::with_formatter(&mut bytes, formatter),
+            )?;
+            String::from_utf8(bytes)?
         } else {
             serde_json::to_string(&json_value)
                 .map_err(|e| crate::EdgelinkError::InvalidOperation(format!("JSON stringify error: {e}")))?
@@ -574,7 +579,7 @@ fn json_value_to_variant(json_value: JsonValue) -> Variant {
             Variant::Array(variants)
         }
         JsonValue::Object(obj) => {
-            let map: std::collections::BTreeMap<String, Variant> =
+            let map: crate::runtime::model::VariantObjectMap =
                 obj.into_iter().map(|(k, v)| (k, json_value_to_variant(v))).collect();
             Variant::Object(map)
         }
@@ -593,9 +598,10 @@ fn variant_to_json_value(variant: &Variant) -> JsonValue {
             JsonValue::Array(json_array)
         }
         Variant::Object(obj) => {
-            let json_obj: serde_json::Map<String, JsonValue> =
-                obj.iter().map(|(k, v)| (k.clone(), variant_to_json_value(v))).collect();
-            JsonValue::Object(json_obj)
+            let mut entries: Vec<_> = obj.iter().collect();
+            // JSON.stringify enumerates array-index keys first, then other keys in insertion order.
+            entries.sort_by_key(|(key, _)| array_index(key));
+            JsonValue::Object(entries.into_iter().map(|(k, v)| (k.clone(), variant_to_json_value(v))).collect())
         }
         Variant::Date(d) => {
             // Convert SystemTime to ISO 8601 string
@@ -742,5 +748,13 @@ mod tests {
         let two = one.get("two").expect("should have two");
         let two_obj = two.as_object().expect("two should be object");
         assert_eq!(two_obj.get("foo").unwrap().as_i64().unwrap(), 123);
+    }
+}
+
+fn array_index(key: &str) -> u32 {
+    if key == "0" || key.as_bytes().first().is_some_and(|b| matches!(b, b'1'..=b'9')) {
+        key.parse().unwrap_or(u32::MAX)
+    } else {
+        u32::MAX
     }
 }

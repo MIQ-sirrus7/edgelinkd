@@ -2,9 +2,10 @@
 // Copyright EdgeLink contributors
 // Based on Node-RED 19-batch.js
 
+use crate::runtime::model::VariantObjectMap;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::{Duration, interval};
@@ -145,7 +146,7 @@ impl BatchNode {
             // Set parts property
             {
                 let mut msg = msg_handle.write().await;
-                let mut parts = BTreeMap::new();
+                let mut parts = VariantObjectMap::new();
                 parts.insert("id".to_string(), Variant::String(id.clone()));
                 parts.insert("index".to_string(), Variant::Number(serde_json::Number::from(*index)));
                 parts.insert("count".to_string(), Variant::Number(serde_json::Number::from(*count)));
@@ -248,7 +249,7 @@ impl BatchNode {
                 Err(e) => log::error!("Failed to send an interval batch: {e}"),
             }
         } else if self.config.allow_empty_sequence {
-            let mut parts = BTreeMap::new();
+            let mut parts = VariantObjectMap::new();
             parts.insert("id".to_string(), Variant::String(Msg::generate_id().to_string()));
             parts.insert("index".to_string(), Variant::Number(serde_json::Number::from(0)));
             parts.insert("count".to_string(), Variant::Number(serde_json::Number::from(1)));

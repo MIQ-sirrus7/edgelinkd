@@ -10,8 +10,6 @@
 //! middle of a field is kept) while the column template and the header row are parsed strictly,
 //! which is exactly the difference the upstream specs pin down.
 
-use std::collections::BTreeMap;
-
 use serde_json::Number;
 
 use crate::runtime::model::{Variant, VariantObjectMap};
@@ -308,7 +306,7 @@ fn to_objects(
     let mut objects = Vec::new();
     let start = usize::from(first_row_is_header);
     for row in output.iter().skip(start) {
-        let mut row_object: VariantObjectMap = BTreeMap::new();
+        let mut row_object: VariantObjectMap = VariantObjectMap::new();
         let mut is_empty = true;
         for (index, header) in headers.iter().enumerate() {
             if header.is_empty() {
