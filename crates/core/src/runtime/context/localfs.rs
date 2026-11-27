@@ -452,7 +452,7 @@ impl ContextStore for LocalFileSystemContextStore {
         match load_scope(&self.inner.storage_base_dir, scope).await? {
             // Node-RED answers a missing file with an empty key list, not an error.
             None => Ok(Vec::new()),
-            Some(value) => Ok(value.as_object().map(|map| map.keys().cloned().collect()).unwrap_or_default()),
+            Some(value) => Ok(super::sorted_context_keys(&value)),
         }
     }
 

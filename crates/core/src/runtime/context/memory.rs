@@ -87,7 +87,7 @@ impl ContextStore for MemoryContextStore {
     async fn get_keys(&self, scope: &str) -> Result<Vec<String>> {
         let scopes = self.scopes.read().await;
         if let Some(scope_map) = scopes.get(scope) {
-            return Ok(scope_map.as_object().map(|m| m.keys().cloned().collect::<Vec<_>>()).unwrap_or_default());
+            return Ok(super::sorted_context_keys(scope_map));
         }
         Err(EdgelinkError::OutOfRange.into())
     }

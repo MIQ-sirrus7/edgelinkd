@@ -105,6 +105,12 @@ pub struct ContextKey<'a> {
 }
 
 /// The API trait for a context storage plug-in
+fn sorted_context_keys(value: &Variant) -> Vec<String> {
+    let mut keys: Vec<String> = value.as_object().into_iter().flat_map(|map| map.keys().cloned()).collect();
+    keys.sort_unstable();
+    keys
+}
+
 #[async_trait]
 pub trait ContextStore: Send + Sync {
     async fn name(&self) -> &str;
