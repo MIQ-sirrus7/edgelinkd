@@ -1560,6 +1560,22 @@ class TestChangeNode:
 
     @pytest.mark.describe('#move')
     class TestMove:
+        @pytest.mark.asyncio
+        @pytest.mark.parametrize(("source", "destination", "before", "after"), [
+            ("payload.n", "payload.out", {"n": 0}, {"out": 0}),
+            ("payload.a[0]", "payload.out", {"a": [False, 7]}, {"a": [7], "out": False}),
+            ("payload.missing", "payload.a[4]", {"a": [1]}, {"a": [1]}),
+            ("payload.missing", "payload.old", {"old": 1}, {}),
+        ])
+        async def test_move_removes_the_resolved_source(self, source, destination, before, after):
+            flows = [
+                {"id": "100", "type": "tab"},
+                {"id": "1", "type": "change", "z": "100", "wires": [["2"]],
+                 "rules": [{"t": "move", "p": source, "pt": "msg", "to": destination, "tot": "msg"}]},
+                {"id": "2", "type": "test-once", "z": "100"},
+            ]
+            messages = await run_flow_with_msgs_ntimes(flows, [{"nid": "1", "msg": {"payload": before}}], 1)
+            assert messages[0]["payload"] == after
 
         @pytest.mark.asyncio
         @pytest.mark.it('moves the value of the message property')

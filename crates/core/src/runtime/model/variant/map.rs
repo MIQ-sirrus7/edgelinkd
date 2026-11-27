@@ -219,7 +219,7 @@ impl VariantObject for VariantObjectMap {
                     (Variant::Object(tail_map), PropexSegment::Property(tail_seg)) => {
                         tail_map.remove(tail_seg.as_ref())
                     }
-                    (Variant::Array(tail_arr), PropexSegment::Index(tail_index)) => Some(tail_arr.remove(*tail_index)),
+                    (Variant::Array(items), PropexSegment::Index(i)) if *i < items.len() => Some(items.remove(*i)),
                     _ => None,
                 }
             }

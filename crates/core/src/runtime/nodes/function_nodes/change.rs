@@ -352,14 +352,21 @@ impl ChangeNode {
             return Err(EdgelinkError::BadArgument("rule")).with_context(|| "`to` and `tot` cannot be none or empty");
         };
 
-        // let target_prop = rule.to.as_ref().unwrap().as_str();
-        let current = match eval::evaluate_raw_node_property(&rule.p, rule.pt, Some(self), None, Some(msg)).await {
-            Ok(v) => v,
-            Err(_) => return Ok(()),
+        let current = if rule.pt == RedPropertyType::Msg {
+            msg.get_nav_stripped(&rule.p).cloned()
+        } else {
+            let ctx = self.get_context_by_property_type(rule.pt)?;
+            let key = crate::runtime::context::evaluate_key(&rule.p)?;
+            ctx.get_one(key.store, key.key, &[PropexEnv::ExtRef("msg", msg.as_variant())]).await
         };
-        // Remove the from side
-        self.set_property(&rule.p, rule.pt, None, msg).await?;
-        self.set_property(to, tot, Some(current), msg).await
+        if rule.pt != tot || (rule.p != *to && rule.p.contains(to.as_str())) {
+            // Node-RED writes first across stores or when moving a child onto its parent.
+            self.set_property(to, tot, current, msg).await?;
+            self.delete_property(&rule.p, rule.pt, msg).await
+        } else {
+            self.delete_property(&rule.p, rule.pt, msg).await?;
+            self.set_property(to, tot, current, msg).await
+        }
     } // apply_rule_move
 
     fn get_context_by_property_type(&self, pt: RedPropertyType) -> crate::Result<Context> {
@@ -378,35 +385,17 @@ impl ChangeNode {
         to_value: Option<Variant>,
         msg: &mut Msg,
     ) -> crate::Result<()> {
+        let Some(to_value) = to_value else {
+            return self.delete_property(target_prop, target_type, msg).await;
+        };
         match target_type {
-            RedPropertyType::Msg => {
-                if let Some(to_value) = to_value {
-                    log::info!("{} = {:?}", target_prop, to_value);
-                    msg.set_nav_stripped(target_prop, to_value, true)?;
-                } else {
-                    // Equals the `undefined` in JS
-                    if msg.contains(target_prop) {
-                        // TODO remove by propex
-                        msg.remove(target_prop);
-                    }
-                }
-                Ok(())
-            }
+            RedPropertyType::Msg => msg.set_nav_stripped(target_prop, to_value, true),
 
             RedPropertyType::Global | RedPropertyType::Flow => {
                 let ctx = self.get_context_by_property_type(target_type)?;
-                if let Some(to_value) = to_value {
-                    let ctx_prop = crate::runtime::context::evaluate_key(target_prop)?;
-                    ctx.set_one(
-                        ctx_prop.store,
-                        ctx_prop.key,
-                        Some(to_value),
-                        &[PropexEnv::ExtRef("msg", msg.as_variant())],
-                    )
+                let ctx_prop = crate::runtime::context::evaluate_key(target_prop)?;
+                ctx.set_one(ctx_prop.store, ctx_prop.key, Some(to_value), &[PropexEnv::ExtRef("msg", msg.as_variant())])
                     .await
-                } else {
-                    Err(EdgelinkError::BadArgument("to_value")).with_context(|| "The target value is None".to_owned())
-                }
             }
 
             _ => Err(EdgelinkError::NotSupported(
@@ -419,9 +408,8 @@ impl ChangeNode {
     async fn delete_property(&self, prop: &str, prop_type: RedPropertyType, msg: &mut Msg) -> crate::Result<()> {
         match prop_type {
             RedPropertyType::Msg => {
-                let _ = msg
-                    .remove_nav(prop)
-                    .ok_or(EdgelinkError::NotSupported(format!("cannot remove the property '{prop}' in the msg")))?;
+                let prop = prop.trim_ascii();
+                msg.remove_nav(prop.strip_prefix("msg.").unwrap_or(prop));
                 Ok(())
             }
 
