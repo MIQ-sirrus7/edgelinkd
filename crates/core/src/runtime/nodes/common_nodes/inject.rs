@@ -38,8 +38,31 @@ struct InjectNodeConfig {
     #[serde(default)]
     once: bool,
 
-    #[serde(rename = "onceDelay", default)]
-    once_delay: Option<f64>,
+    #[serde(rename = "onceDelay", default = "default_once_delay", deserialize_with = "deserialize_once_delay")]
+    once_delay: Duration,
+}
+
+fn default_once_delay() -> Duration {
+    Duration::from_millis(100)
+}
+
+fn deserialize_once_delay<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Duration, D::Error> {
+    use serde::de::Error;
+    let value = Value::deserialize(deserializer)?;
+    // The editor supplies text. Node-RED uses (onceDelay || 0.1) before converting to milliseconds.
+    let seconds = match &value {
+        Value::Null => return Ok(default_once_delay()),
+        Value::Number(n) if n.as_f64() == Some(0.0) => return Ok(default_once_delay()),
+        Value::Number(n) => n.as_f64(),
+        Value::String(s) if s.is_empty() => return Ok(default_once_delay()),
+        Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }
+    .ok_or_else(|| D::Error::custom("onceDelay must be a number of seconds"))?;
+    let milliseconds = seconds * 1000.0;
+    // Node.js timers use a one-millisecond delay outside the supported interval.
+    let millis = if (1.0..=i32::MAX as f64).contains(&milliseconds) { milliseconds as u64 } else { 1 };
+    Ok(Duration::from_millis(millis))
 }
 
 #[derive(Debug)]
@@ -73,9 +96,7 @@ impl InjectNode {
     }
 
     async fn once_task(&self, stop_token: CancellationToken) -> crate::Result<()> {
-        if let Some(once_delay_value) = self.config.once_delay {
-            crate::utils::async_util::delay(Duration::from_secs_f64(once_delay_value), stop_token.clone()).await?;
-        }
+        crate::utils::async_util::delay(self.config.once_delay, stop_token.clone()).await?;
 
         self.inject_msg(stop_token).await?;
         Ok(())
@@ -326,6 +347,23 @@ mod inject_web {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editor_once_delay_uses_node_red_timer_defaults() {
+        for (json, millis) in [
+            (r#"{}"#, 100),
+            (r#"{"onceDelay":""}"#, 100),
+            (r#"{"onceDelay":null}"#, 100),
+            (r#"{"onceDelay":0}"#, 100),
+            (r#"{"onceDelay":"0"}"#, 1),
+            (r#"{"onceDelay":"0.45"}"#, 450),
+            (r#"{"onceDelay":0.45}"#, 450),
+            (r#"{"onceDelay":2}"#, 2000),
+        ] {
+            let cfg: InjectNodeConfig = serde_json::from_str(json).unwrap();
+            assert_eq!(cfg.once_delay, Duration::from_millis(millis), "{json}");
+        }
+    }
 
     #[test]
     fn parse_red_property_triple_should_be_ok() {
