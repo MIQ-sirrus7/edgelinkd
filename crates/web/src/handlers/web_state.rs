@@ -132,8 +132,7 @@ impl WebState {
             self.comms.start_debug_listener(debug_rx, cancel_token.clone()).await;
 
             // Start status message listener
-            let status_rx = engine.status_channel().subscribe();
-            self.comms.start_status_listener(status_rx, cancel_token.clone()).await;
+            self.comms.observe_status(engine.status_channel());
 
             // Start Engine event listener
             let mut event_rx = engine.subscribe_events();

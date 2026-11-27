@@ -54,6 +54,7 @@ impl Engine {
             }
         }
         self.inner.context_manager.close_all().await?;
+        self.inner.status_channel.clear_retained();
 
         *shutdown_lock = true;
         self.publish_event(EngineEvent::EngineStopped);

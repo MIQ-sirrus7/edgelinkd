@@ -17,6 +17,9 @@ use tokio::sync::broadcast;
 use tokio::time::{Duration, interval};
 
 use crate::handlers::WebState;
+use edgelink_core::runtime::status_channel::{StatusChannel, StatusObserver};
+mod status;
+use status::EditorStatuses;
 
 /// Bridge a Node-RED websocket configuration endpoint into the core endpoint registry.
 pub async fn websocket_node_handler(
@@ -83,6 +86,7 @@ pub type NodeRedMessageBatch = Vec<NodeRedMessage>;
 /// WebSocket connection manager
 #[derive(Debug, Clone)]
 pub struct CommsManager {
+    statuses: Arc<EditorStatuses>,
     /// Broadcast channel sender
     pub broadcast_tx: broadcast::Sender<String>,
     /// Active connections
@@ -107,6 +111,11 @@ impl Default for CommsManager {
 }
 
 impl CommsManager {
+    pub fn observe_status(&self, channel: &StatusChannel) {
+        let observer: Arc<dyn StatusObserver> = self.statuses.clone();
+        channel.observe(Arc::downgrade(&observer));
+    }
+
     /// Start status message listener task
     pub async fn start_status_listener(
         &self,
@@ -121,8 +130,7 @@ impl CommsManager {
                     result = status_rx.recv() => {
                         match result {
                             Ok(status_msg) => {
-                                let jv = serde_json::to_value(status_msg.status).unwrap(); // FIXME
-                                comms_manager.send_node_status_json(format!("{}", status_msg.sender_id).as_ref(), jv).await;
+                                comms_manager.statuses.update(&status_msg);
                             }
                             Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                                 log::warn!("Status message receiver lagged, skipped {skipped} messages");
@@ -146,8 +154,7 @@ impl CommsManager {
                                 match result {
                                     Ok(status_msg) => {
                                         log::debug!("Received final status message: {status_msg:?}");
-                                        let jv = serde_json::to_value(status_msg.status).unwrap(); // FIXME
-                                        comms_manager.send_node_status_json(format!("{}", status_msg.sender_id).as_ref(), jv).await;
+                                        comms_manager.statuses.update(&status_msg);
                                     }
                                     Err(_) => {
                                         log::debug!("Status channel closed during shutdown");
@@ -166,7 +173,7 @@ impl CommsManager {
     }
     pub fn new() -> Self {
         let (broadcast_tx, _) = broadcast::channel(1000);
-        Self { broadcast_tx, connections: Arc::new(RwLock::new(HashMap::new())) }
+        Self { broadcast_tx, connections: Arc::new(RwLock::new(HashMap::new())), statuses: Arc::default() }
     }
 
     /// Create a single Node-RED message
@@ -180,7 +187,7 @@ impl CommsManager {
     }
 
     /// Serialize message batch to string
-    pub fn serialize_batch(batch: &NodeRedMessageBatch) -> String {
+    pub fn serialize_batch(batch: &[NodeRedMessage]) -> String {
         serde_json::to_string(batch).unwrap_or_else(|e| {
             log::error!("Failed to serialize message batch: {e}");
             "[]".to_string()
@@ -202,6 +209,7 @@ impl CommsManager {
     /// Remove connection
     pub async fn remove_connection(&self, id: &str) {
         let mut connections = self.connections.write().await;
+        self.statuses.disconnect(id);
         connections.remove(id);
     }
 
@@ -220,6 +228,9 @@ impl CommsManager {
         if let Some(connection) = connections.get(connection_id) {
             let mut subscriptions = connection.subscriptions.write().await;
             subscriptions.insert(topic.to_string());
+            if topic.starts_with("status/") {
+                self.statuses.subscribe(connection_id, topic, &connection.tx);
+            }
         }
     }
 
@@ -229,6 +240,9 @@ impl CommsManager {
         if let Some(connection) = connections.get(connection_id) {
             let mut subscriptions = connection.subscriptions.write().await;
             subscriptions.remove(topic);
+            if topic.starts_with("status/") {
+                self.statuses.unsubscribe(connection_id, topic);
+            }
         }
     }
 
@@ -646,15 +660,6 @@ async fn handle_websocket_message(
         match topic {
             "debug" => {
                 // Debug topic doesn't send initial data
-            }
-            topic if topic.starts_with("status/") => {
-                // Send status info initialization
-                let status_init_data = serde_json::json!({
-                    "type": "status",
-                    "status": {}
-                });
-                let status_batch = vec![CommsManager::create_message(topic, &status_init_data)];
-                let _ = tx.send(CommsManager::serialize_batch(&status_batch));
             }
             "notification/#" => {
                 // Send runtime deploy notification with revision

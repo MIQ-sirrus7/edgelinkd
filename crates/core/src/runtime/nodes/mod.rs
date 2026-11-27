@@ -727,7 +727,7 @@ where
 
 #[allow(dead_code)]
 impl StatusObject {
-    fn empty() -> Self {
+    pub fn empty() -> Self {
         Self { fill: None, shape: None, text: None }
     }
 
