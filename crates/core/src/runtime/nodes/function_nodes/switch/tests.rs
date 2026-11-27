@@ -669,3 +669,16 @@ fn typed_boolean_comparisons() {
         assert_eq!(rules[1].operator.apply(&a, low, high, false, &[]).unwrap(), between);
     }
 }
+
+#[test]
+fn scalar_comparisons_follow_js_number_conversion() {
+    let n = Variant::from(1_i64);
+    for text in ["1", " 1 ", "0x1", "1.0", "1e0"] {
+        let s = Variant::from(text);
+        assert!(equal_rule_values(&n, &s));
+        assert!(equal_rule_values(&s, &n));
+    }
+    assert!(!equal_rule_values(&Variant::Null, &Variant::from(0_i64)));
+    assert_eq!(compare_rule_values(&Variant::from("missing"), &n), None);
+    assert_eq!(compare_rule_values(&Variant::from("10"), &Variant::from("2")), Some(Ordering::Less));
+}

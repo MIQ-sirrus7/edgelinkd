@@ -164,15 +164,23 @@ where
 // Switch comparison rules use JavaScript's loose operators. The dedicated
 // "is true" and "is false" rules below intentionally require a Boolean.
 fn compare_rule_values(a: &Variant, b: &Variant) -> Option<Ordering> {
-    if a.is_bool() || b.is_bool() { js_number(Some(a)).partial_cmp(&js_number(Some(b))) } else { a.partial_cmp(b) }
+    if let (Some(left), Some(right)) = (a.as_str(), b.as_str()) {
+        return Some(left.encode_utf16().cmp(right.encode_utf16()));
+    }
+    if a.is_bool() || b.is_bool() || a.is_number() || b.is_number() {
+        return js_number(Some(a)).partial_cmp(&js_number(Some(b)));
+    }
+    a.partial_cmp(b)
 }
 
 fn equal_rule_values(a: &Variant, b: &Variant) -> bool {
-    if a.is_bool() || b.is_bool() {
-        !a.is_null() && !b.is_null() && compare_rule_values(a, b) == Some(Ordering::Equal)
-    } else {
-        a == b
+    if a.is_null() || b.is_null() {
+        return a.is_null() && b.is_null();
     }
+    if a.is_bool() || b.is_bool() || a.is_number() || b.is_number() {
+        return compare_rule_values(a, b) == Some(Ordering::Equal);
+    }
+    a == b
 }
 
 impl SwitchRuleOperator {
