@@ -35,7 +35,16 @@ pub async fn get_nodes(
 
     if accept_header.contains("text/html") {
         // Return HTML config for all nodes
-        let html_content = generate_nodes_html().await;
+        let requested = headers.get("accept-language").and_then(|h| h.to_str().ok()).unwrap_or("en-US");
+        let theme = &state.red_settings.editor_theme;
+        let preferred = theme.lang.as_deref().unwrap_or(requested).split([',', ';']).next().unwrap_or("").trim();
+        let language = theme
+            .languages
+            .iter()
+            .find(|lang| lang.eq_ignore_ascii_case(preferred))
+            .map(String::as_str)
+            .unwrap_or("en-US");
+        let html_content = generate_nodes_html(language).await;
         Ok(Html(html_content).into_response())
     } else {
         // Return node list in JSON format - based on actual node registry
@@ -80,7 +89,7 @@ pub async fn get_nodes(
 }
 
 /// Generate HTML config for all nodes
-async fn generate_nodes_html() -> String {
+async fn generate_nodes_html(language: &str) -> String {
     // Dynamically generate node HTML at runtime - read and merge all HTML files under Node-RED node directory
     let node_red_nodes_dir = paths::ui_static_dir().join("nodes");
 
@@ -105,7 +114,7 @@ async fn generate_nodes_html() -> String {
     if let Ok(mut entries) = tokio::fs::read_dir(&node_red_nodes_dir).await {
         while let Ok(Some(entry)) = entries.next_entry().await {
             let path = entry.path();
-            if !path.is_dir() || matches!(entry.file_name().to_str(), Some("core" | "examples")) {
+            if !path.is_dir() || matches!(entry.file_name().to_str(), Some("core" | "examples" | "locales")) {
                 continue;
             }
             let Some(module) = path.file_name().and_then(|name| name.to_str()) else {
@@ -115,6 +124,8 @@ async fn generate_nodes_html() -> String {
         }
     }
 
+    let help = node_red_nodes_dir.join("locales").join(language);
+    process_node_directory_runtime(&help, &mut html_content).await;
     if html_content.is_empty() {
         return get_fallback_nodes_html();
     }

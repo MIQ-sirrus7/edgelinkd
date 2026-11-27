@@ -195,6 +195,8 @@ pub struct RedSystemSettings {
 /// Editor theme configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditorTheme {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lang: Option<String>,
     #[serde(default)]
     pub schemes: Vec<ThemeScheme>,
     #[serde(default, rename = "codeEditor")]
@@ -344,6 +346,7 @@ impl Default for EditorTheme {
             .collect::<Vec<String>>();
 
         Self {
+            lang: None,
             schemes: vec![ThemeScheme::Light, ThemeScheme::Dark],
             code_editor: CodeEditor::default(),
             page: ThemePage { title: "EdgeLinkd".to_string(), favicon: None, css: None, scripts: None },
@@ -377,10 +380,14 @@ impl Default for LoggingConfig {
 // Load WebServerArgs from config, fallback to default if not found
 impl RedSystemSettings {
     pub fn load(cfg: &config::Config) -> edgelink_core::Result<Self> {
-        match cfg.get::<Self>("web") {
-            Ok(res) => Ok(res),
-            Err(config::ConfigError::NotFound(_)) => Ok(Self::default()),
-            Err(e) => Err(e.into()),
+        let mut settings = match cfg.get::<Self>("web") {
+            Ok(settings) => settings,
+            Err(config::ConfigError::NotFound(_)) => Self::default(),
+            Err(e) => return Err(e.into()),
+        };
+        if let Ok(language) = cfg.get_string("ui-host.editor_language") {
+            settings.editor_theme.lang = Some(language);
         }
+        Ok(settings)
     }
 }
