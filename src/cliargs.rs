@@ -55,9 +55,9 @@ pub enum Commands {
         #[arg(long, default_value_t = false)]
         headless: bool,
 
-        /// Server bind address for web interface
-        #[arg(long, default_value = "127.0.0.1:1888")]
-        bind: String,
+        /// Override the configured web listener address (default: 127.0.0.1:1888)
+        #[arg(long)]
+        bind: Option<String>,
     },
     /// List all available node types
     List,
@@ -96,7 +96,9 @@ impl CliArgs {
             if let Some(fp) = flows_path {
                 builder = builder.set_override("flows_path", fp.clone())?;
             }
-            builder = builder.set_override("bind", bind.clone())?;
+            if let Some(addr) = bind {
+                builder = builder.set_override("bind", addr.clone())?;
+            }
             builder = builder.set_override("headless", *headless)?;
         }
         // verbose
@@ -118,5 +120,21 @@ impl CliArgs {
             builder = builder.set_override("home", home.clone())?;
         }
         Ok(builder)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_an_explicit_bind_overrides_the_configured_listener() {
+        for (extra_args, expected) in [(vec![], None), (vec!["--bind", "127.0.0.1:8124"], Some("127.0.0.1:8124"))] {
+            let args = CliArgs::parse_from(["edgelinkd", "run"].into_iter().chain(extra_args));
+            let builder = config::Config::builder().set_default("ui-host.port", 8123).unwrap();
+            let cfg = args.merge_into_config_builder(builder).unwrap().build().unwrap();
+            assert_eq!(cfg.get_string("bind").ok().as_deref(), expected);
+            assert_eq!(cfg.get_int("ui-host.port").unwrap(), 8123);
+        }
     }
 }
