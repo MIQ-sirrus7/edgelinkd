@@ -124,6 +124,62 @@ struct MqttWillMessage {
     user_properties: Option<serde_json::Value>,
 }
 
+impl MqttBrokerConfig {
+    // Resolve the URL once so both MQTT versions use the same connection settings.
+    fn apply_url(&mut self) -> crate::Result<()> {
+        if self.url.is_empty() {
+            return Ok(());
+        }
+        let url = url::Url::parse(&self.url)?;
+        let secure = match url.scheme() {
+            "mqtt" => false,
+            "mqtts" => true,
+            _ => anyhow::bail!("Expected an mqtt or mqtts broker URL"),
+        };
+        anyhow::ensure!(
+            url.username().is_empty()
+                && url.password().is_none()
+                && url.query().is_none()
+                && url.fragment().is_none()
+                && matches!(url.path(), "" | "/"),
+            "Expected an MQTT host and port"
+        );
+        let host = url.host_str().ok_or_else(|| anyhow::anyhow!("Missing MQTT broker host"))?;
+        if self.broker.as_deref().unwrap_or_default().is_empty() {
+            self.broker = Some(host.trim_start_matches('[').trim_end_matches(']').to_owned());
+        }
+        self.port.get_or_insert(url.port().unwrap_or(if secure { 8883 } else { 1883 }));
+        if secure && self.tls.as_deref().unwrap_or_default().is_empty() {
+            self.tls = Some("system".to_owned());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::*;
+
+    #[test]
+    fn url_sets_host_port_and_transport() {
+        for (scheme, secure, default_port) in [("mqtt", false, 1883), ("mqtts", true, 8883)] {
+            for (authority, host) in [("broker.example", "broker.example"), ("[::1]", "::1")] {
+                for port in [None, Some(1883), Some(8883), Some(65535)] {
+                    let suffix = port.map(|p| format!(":{p}")).unwrap_or_default();
+                    let mut config: MqttBrokerConfig = serde_json::from_value(serde_json::json!({
+                        "url":format!("{scheme}://{authority}{suffix}")
+                    }))
+                    .unwrap();
+                    config.apply_url().unwrap();
+                    assert_eq!(config.broker.as_deref(), Some(host));
+                    assert_eq!(config.port, Some(port.unwrap_or(default_port)));
+                    assert_eq!(config.tls.is_some(), secure);
+                }
+            }
+        }
+    }
+}
+
 fn default_keepalive() -> u16 {
     60
 }
@@ -295,7 +351,8 @@ impl MqttBrokerNode {
                 }
             }
         }
-        let broker_config = MqttBrokerConfig::deserialize(&values)?;
+        let mut broker_config = MqttBrokerConfig::deserialize(&values)?;
+        broker_config.apply_url()?;
         let state = BaseGlobalNodeState {
             id: config.id,
             name: config.name.clone(),
@@ -368,34 +425,12 @@ impl MqttBrokerNode {
         opts
     }
 
-    /// Parse host from broker url
     fn parse_host(&self) -> String {
-        if let Some(host) = &self.config.broker {
-            return host.clone();
-        }
-        // Example: mqtt://localhost:1883
-        let url = &self.config.url;
-        if let Some(stripped) = url.strip_prefix("mqtt://") {
-            stripped.split(':').next().unwrap_or("localhost").to_string()
-        } else if let Some(stripped) = url.strip_prefix("mqtts://") {
-            stripped.split(':').next().unwrap_or("localhost").to_string()
-        } else {
-            "localhost".to_string()
-        }
+        self.config.broker.clone().unwrap_or_else(|| "localhost".into())
     }
 
-    /// Parse port from broker url
     fn parse_port(&self) -> u16 {
-        if let Some(port) = self.config.port {
-            return port;
-        }
-        let url = &self.config.url;
-        if let Some(idx) = url.rfind(':')
-            && let Ok(port) = url[idx + 1..].parse()
-        {
-            return port;
-        }
-        if url.starts_with("mqtts://") { 8883 } else { 1883 }
+        self.config.port.unwrap_or(1883)
     }
 
     /// Connect to the MQTT broker and store the client in the pool
