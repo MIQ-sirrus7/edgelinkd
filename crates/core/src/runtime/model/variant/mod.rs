@@ -41,6 +41,31 @@ pub trait PropexEnvSliceExt<'a> {
 #[derive(Debug, Clone)]
 pub struct UndefinableVariant(pub Option<Variant>);
 
+/// Exact JavaScript BigInt in the signed or unsigned 64-bit range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BigInt64 {
+    bits: u64,
+    negative: bool,
+}
+
+impl BigInt64 {
+    pub fn value(self) -> i128 {
+        if self.negative { i128::from(self.bits as i64) } else { i128::from(self.bits) }
+    }
+}
+
+impl From<i64> for BigInt64 {
+    fn from(value: i64) -> Self {
+        Self { bits: value as u64, negative: value < 0 }
+    }
+}
+
+impl From<u64> for BigInt64 {
+    fn from(value: u64) -> Self {
+        Self { bits: value, negative: false }
+    }
+}
+
 /// A versatile enum that can represent various types of data.
 ///
 /// This enum is designed to be a flexible container for different kinds of data,
@@ -72,6 +97,9 @@ pub enum Variant {
     /// Represents a floating-point number or a 64-bit integer number.
     Number(serde_json::Number),
 
+    /// A BigInt stays distinct from Number when it crosses a Function boundary.
+    BigInt(BigInt64),
+
     /// Represents a string of characters.
     String(String),
 
@@ -99,6 +127,7 @@ impl PartialEq for Variant {
         match (self, other) {
             (Variant::Null, Variant::Null) => true,
             (Variant::Number(a), Variant::Number(b)) => a == b,
+            (Variant::BigInt(a), Variant::BigInt(b)) => a == b,
             (Variant::String(a), Variant::String(b)) => a == b,
             (Variant::Bool(a), Variant::Bool(b)) => a == b,
             (Variant::Date(a), Variant::Date(b)) => a == b,
@@ -327,6 +356,7 @@ impl Variant {
         match self {
             Variant::String(s) => Ok(s.clone()),
             Variant::Number(f) => Ok(f.to_string()),
+            Variant::BigInt(n) => Ok(n.value().to_string()),
             Variant::Bool(b) => Ok(b.to_string()),
             _ => Err(EdgelinkError::InvalidOperation("Bad type".into()).into()),
         }
@@ -657,6 +687,7 @@ impl Debug for Variant {
             Variant::Null => formatter.write_str("Null"),
             Variant::Bool(boolean) => write!(formatter, "Bool({boolean})"),
             Variant::Number(number) => Debug::fmt(number, formatter),
+            Variant::BigInt(n) => write!(formatter, "{}n", n.value()),
             Variant::String(string) => write!(formatter, "String({string:?})"),
             Variant::Date(sd) => write!(formatter, "Date({sd:?})"),
             Variant::Regexp(re) => write!(formatter, "Regexp({re:?})"),
@@ -676,6 +707,7 @@ impl Debug for Variant {
 impl PartialOrd for Variant {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
+            (Variant::BigInt(a), Variant::BigInt(b)) => a.value().partial_cmp(&b.value()),
             (Variant::String(s1), Variant::String(s2)) => s1.partial_cmp(s2),
             (Variant::Number(n1), Variant::Number(n2)) if n1.is_i64() && n2.is_i64() => {
                 n1.as_i64().partial_cmp(&n2.as_i64())

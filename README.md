@@ -13,6 +13,8 @@
 
 English | [简中](README.zh-cn.md)
 
+Function messages support JavaScript BigInt values from −2⁶³ through 2⁶⁴−1. They remain BigInts between nodes and in memory context. Debug displays their exact digits. JSON-backed exports and file context store decimal strings, which can be read back with `BigInt(value)`. JavaScript's own `JSON.stringify` requires an explicit conversion.
+
 ## Overview
 
 **EdgeLinkd** is a high-performance, memory-efficient Node-RED compatible runtime engine built from the ground up in Rust, now featuring an integrated web UI for complete standalone operation.

@@ -231,6 +231,7 @@ impl ExecNode {
         match value {
             Variant::Null => "null".to_string(),
             Variant::String(value) => value.clone(),
+            Variant::BigInt(n) => n.value().to_string(),
             Variant::Number(value) => value.to_string(),
             Variant::Bool(value) => value.to_string(),
             Variant::Bytes(value) => String::from_utf8_lossy(value).into_owned(),

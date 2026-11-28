@@ -15,6 +15,24 @@ impl<'js> js::FromJs<'js> for Variant {
 
             js::Type::Bool => Ok(Variant::Bool(jv.get()?)),
 
+            js::Type::BigInt => {
+                // QuickJS converts modulo 2^64. Compare the reconstructed value to reject overflow.
+                let original = jv.into_big_int().expect("checked BigInt type");
+                let bits = original.clone().to_i64()?;
+                let signed = js::BigInt::from_i64(_ctx.clone(), bits)?;
+                // Both values belong to this live context. Strict equality compares BigInts by value.
+                let equal = |candidate: &js::BigInt<'js>| unsafe {
+                    js::qjs::JS_IsStrictEqual(_ctx.as_raw().as_ptr(), original.as_raw(), candidate.as_raw())
+                };
+                if equal(&signed) {
+                    return Ok(Variant::BigInt(bits.into()));
+                }
+                if bits < 0 && equal(&js::BigInt::from_u64(_ctx.clone(), bits as u64)?) {
+                    return Ok(Variant::BigInt((bits as u64).into()));
+                }
+                Err(js::Error::new_from_js_message("BigInt", "Variant", "outside signed or unsigned 64-bit range"))
+            }
+
             js::Type::Int => Ok(Variant::from(jv.get::<i64>()?)),
 
             js::Type::Float => Ok(Variant::from(jv.get::<f64>()?)),
@@ -110,6 +128,15 @@ impl<'js> js::IntoJs<'js> for Variant {
 
             Variant::Bytes(bytes) => Ok(js::ArrayBuffer::new(ctx.clone(), bytes)?.into_value()),
 
+            Variant::BigInt(n) => {
+                let value = n.value();
+                if value < 0 {
+                    Ok(js::BigInt::from_i64(ctx.clone(), value as i64)?.into_value())
+                } else {
+                    Ok(js::BigInt::from_u64(ctx.clone(), value as u64)?.into_value())
+                }
+            }
+
             Variant::Number(num) => {
                 // Integers must be tested before floats: `serde_json::Number::as_f64` also answers
                 // for integers, and going through f64 silently rounds anything above 2^53 (ids).
@@ -161,6 +188,24 @@ mod tests {
     use serde_json::*;
 
     use super::*;
+
+    #[test]
+    fn bigint_crosses_the_function_boundary_exactly() {
+        let runtime = js::Runtime::new().unwrap();
+        let context = js::Context::full(&runtime).unwrap();
+        context.with(|ctx| {
+            for n in [0, 1, -1, i128::from(i64::MIN), i128::from(i64::MAX) + 2, i128::from(u64::MAX)] {
+                let object: Variant = ctx.eval(format!("({{word: {n}n}})")).unwrap();
+                ctx.globals().set("msg", object.clone()).unwrap();
+                assert!(ctx.eval::<bool, _>(format!("msg.word === {n}n")).unwrap());
+                assert_eq!(serde_json::to_value(object).unwrap()["word"], n.to_string());
+            }
+            for expr in ["1n << 64n", "-(1n << 63n) - 1n"] {
+                assert!(ctx.eval::<Variant, _>(expr).is_err());
+            }
+            assert!(matches!(ctx.eval::<Variant, _>("7").unwrap(), Variant::Number(_)));
+        });
+    }
 
     #[test]
     fn variant_into_js() {

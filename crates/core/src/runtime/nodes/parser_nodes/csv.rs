@@ -1332,6 +1332,7 @@ fn ensure_string(value: &Variant) -> String {
         Variant::Bytes(bytes) => String::from_utf8_lossy(bytes).to_string(),
         Variant::Null => "null".to_string(),
         Variant::Bool(value) => value.to_string(),
+        Variant::BigInt(n) => n.value().to_string(),
         Variant::Number(number) => number.to_string(),
         Variant::Object(_) | Variant::Array(_) => serde_json::to_string(value).unwrap_or_default(),
         // JavaScript's `JSON.stringify` of a `RegExp` is `{}`; a `Variant::Regexp` keeps its pattern.

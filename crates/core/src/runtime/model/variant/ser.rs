@@ -9,6 +9,8 @@ impl Serialize for Variant {
     {
         match self {
             Variant::Null => serializer.serialize_none(),
+            // JSON has no BigInt. Use exact decimal text at serialization boundaries.
+            Variant::BigInt(n) => serializer.collect_str(&n.value()),
             Variant::Number(v) => v.serialize(serializer),
             Variant::String(v) => serializer.serialize_str(v),
             Variant::Bool(v) => serializer.serialize_bool(*v),
