@@ -683,3 +683,31 @@ fn scalar_comparisons_follow_js_number_conversion() {
     assert_eq!(compare_rule_values(&Variant::from("missing"), &n), None);
     assert_eq!(compare_rule_values(&Variant::from("10"), &Variant::from("2")), Some(Ordering::Less));
 }
+
+#[test]
+fn bigint_thresholds_preserve_the_word_and_operand_order() {
+    for shift in 0..64 {
+        for value in [(1_u64 << shift).saturating_sub(1), 1_u64 << shift, (1_u64 << shift) + 1, u64::MAX] {
+            let word = Variant::BigInt(value.into());
+            let integer = i128::from(value);
+            for bound in [value as f64, (1_u64 << shift) as f64, -0.5, 1.5] {
+                let n = Variant::from(bound);
+                let expected = integer.cmp(&(bound as i128)).then_with(|| {
+                    if bound.fract() > 0.0 {
+                        Ordering::Less
+                    } else if bound.fract() < 0.0 {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                });
+                assert_eq!(compare_rule_values(&word, &n), Some(expected));
+                assert_eq!(compare_rule_values(&n, &word), Some(expected.reverse()));
+                assert_eq!(equal_rule_values(&word, &n), expected.is_eq());
+            }
+            assert!(equal_rule_values(&word, &Variant::from(format!("0x{value:x}"))));
+            assert!(!equal_rule_values(&word, &Variant::from("1.5")));
+        }
+    }
+    assert_eq!(compare_rule_values(&Variant::BigInt(2_u64.into()), &Variant::from(1_i64)), Some(Ordering::Greater));
+}

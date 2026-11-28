@@ -1,4 +1,5 @@
 use crate::runtime::model::Variant;
+use std::cmp::Ordering;
 
 pub(super) fn js_string(value: &Variant) -> String {
     match value {
@@ -15,6 +16,47 @@ pub(super) fn js_string(value: &Variant) -> String {
         _ => String::from(value),
     }
 }
+// The caller has at least one BigInt operand. JS relational comparisons preserve its bits.
+pub(super) fn compare_bigint(a: &Variant, b: &Variant) -> Option<Ordering> {
+    let (integer, other, reverse) = match (a, b) {
+        (Variant::BigInt(x), Variant::BigInt(y)) => return Some(x.value().cmp(&y.value())),
+        (Variant::BigInt(n), other) => (n.value(), other, false),
+        (other, Variant::BigInt(n)) => (n.value(), other, true),
+        _ => return None,
+    };
+    let order = match other {
+        Variant::String(s) => compare_integer_text(integer, s)?,
+        Variant::Array(_) | Variant::Bytes(_) => compare_integer_text(integer, &js_string(other))?,
+        _ => {
+            let number = js_number(Some(other));
+            if number.is_nan() {
+                return None;
+            }
+            // Saturating conversion is safe: every supported BigInt lies strictly inside i128.
+            integer.cmp(&(number as i128)).then_with(|| 0.0_f64.partial_cmp(&number.fract()).unwrap_or(Ordering::Equal))
+        }
+    };
+    Some(if reverse { order.reverse() } else { order })
+}
+
+fn compare_integer_text(integer: i128, text: &str) -> Option<Ordering> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Some(integer.cmp(&0));
+    }
+    let (radix, digits) = match text.get(..2) {
+        Some("0x" | "0X") => (16, &text[2..]),
+        Some("0o" | "0O") => (8, &text[2..]),
+        Some("0b" | "0B") => (2, &text[2..]),
+        _ => (10, text.strip_prefix(['+', '-']).unwrap_or(text)),
+    };
+    if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
+        return None;
+    }
+    let value = i128::from_str_radix(digits, radix).unwrap_or(i128::MAX);
+    Some(integer.cmp(&(if text.starts_with('-') { -value } else { value })))
+}
+
 pub(super) fn js_number(value: Option<&Variant>) -> f64 {
     match value {
         None => f64::NAN,
@@ -26,6 +68,7 @@ pub(super) fn js_number(value: Option<&Variant>) -> f64 {
                 0.0
             }
         }
+        Some(Variant::BigInt(n)) => n.value() as f64,
         Some(Variant::Number(n)) => n.as_f64().unwrap_or(f64::NAN),
         Some(Variant::Date(d)) => match d.duration_since(std::time::UNIX_EPOCH) {
             Ok(duration) => duration.as_secs_f64() * 1000.0,

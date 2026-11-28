@@ -1,7 +1,7 @@
 // Licensed under the Apache License, Version 2.0
 // Based on Node-RED 4.0.9's 18-sort.js.
 use crate::runtime::flow::Flow;
-use crate::runtime::nodes::js_coercion::{js_number, js_string};
+use crate::runtime::nodes::js_coercion::{compare_bigint, js_number, js_string};
 use crate::runtime::nodes::*;
 use edgelink_macro::*;
 use serde::Deserialize;
@@ -141,6 +141,7 @@ impl SortNode {
             let equal = match (a, b) {
                 (None, None) | (Some(Variant::Null), Some(Variant::Null)) => true,
                 (Some(Variant::String(a)), Some(Variant::String(b))) => a == b,
+                (Some(Variant::BigInt(a)), Some(Variant::BigInt(b))) => a == b,
                 (Some(Variant::Bool(a)), Some(Variant::Bool(b))) => a == b,
                 (Some(Variant::Number(a)), Some(Variant::Number(b))) => a.as_f64() == b.as_f64(),
                 _ => false,
@@ -159,6 +160,9 @@ impl SortNode {
                 let greater = match (&ap, &bp) {
                     (Some(Variant::String(a)), Some(Variant::String(b))) => {
                         a.encode_utf16().cmp(b.encode_utf16()) == Ordering::Greater
+                    }
+                    (Some(a), Some(b)) if matches!(a, Variant::BigInt(_)) || matches!(b, Variant::BigInt(_)) => {
+                        compare_bigint(a, b) == Some(Ordering::Greater)
                     }
                     _ => js_number(ap.as_ref()) > js_number(bp.as_ref()),
                 };

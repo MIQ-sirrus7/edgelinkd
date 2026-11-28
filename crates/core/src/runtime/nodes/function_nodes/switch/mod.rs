@@ -10,7 +10,7 @@ use serde_with::rust::deserialize_ignore_any;
 use tokio::sync::RwLock;
 
 use crate::runtime::flow::Flow;
-use crate::runtime::nodes::js_coercion::js_number;
+use crate::runtime::nodes::js_coercion::{compare_bigint, js_number};
 use crate::runtime::nodes::*;
 use edgelink_macro::*;
 
@@ -164,6 +164,9 @@ where
 // Switch comparison rules use JavaScript's loose operators. The dedicated
 // "is true" and "is false" rules below intentionally require a Boolean.
 fn compare_rule_values(a: &Variant, b: &Variant) -> Option<Ordering> {
+    if matches!(a, Variant::BigInt(_)) || matches!(b, Variant::BigInt(_)) {
+        return compare_bigint(a, b);
+    }
     if let (Some(left), Some(right)) = (a.as_str(), b.as_str()) {
         return Some(left.encode_utf16().cmp(right.encode_utf16()));
     }
@@ -177,7 +180,13 @@ fn equal_rule_values(a: &Variant, b: &Variant) -> bool {
     if a.is_null() || b.is_null() {
         return a.is_null() && b.is_null();
     }
-    if a.is_bool() || b.is_bool() || a.is_number() || b.is_number() {
+    if matches!(a, Variant::BigInt(_))
+        || matches!(b, Variant::BigInt(_))
+        || a.is_bool()
+        || b.is_bool()
+        || a.is_number()
+        || b.is_number()
+    {
         return compare_rule_values(a, b) == Some(Ordering::Equal);
     }
     a == b
