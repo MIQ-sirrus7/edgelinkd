@@ -7,6 +7,7 @@ impl From<&Variant> for String {
     fn from(var: &Variant) -> Self {
         match var {
             Variant::Number(f) => f.to_string(),
+            Variant::BigInt(n) => n.value().to_string(),
             Variant::String(s) => s.clone(),
             Variant::Regexp(s) => s.to_string(),
             Variant::Bool(b) => b.to_string(),

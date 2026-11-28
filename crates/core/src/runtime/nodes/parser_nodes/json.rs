@@ -173,9 +173,11 @@ impl JsonNode {
                             }
                         }
                         // Only treat as buffer-like in Parse mode, not in Auto/Stringify
-                        Variant::Array(_) | Variant::Object(_) | Variant::Bool(_) | Variant::Number(_) => {
-                            self.stringify_value(&value)
-                        }
+                        Variant::Array(_)
+                        | Variant::Object(_)
+                        | Variant::Bool(_)
+                        | Variant::Number(_)
+                        | Variant::BigInt(_) => self.stringify_value(&value),
                         Variant::Null | Variant::Date(_) | Variant::Regexp(_) => {
                             // Pass through without processing
                             Ok(value)
@@ -227,6 +229,7 @@ impl JsonNode {
                         | Variant::Array(_)
                         | Variant::Bool(_)
                         | Variant::Number(_)
+                        | Variant::BigInt(_)
                         | Variant::Null
                         | Variant::Date(_)
                         | Variant::Regexp(_) => {
@@ -286,7 +289,7 @@ impl JsonNode {
                 match value {
                     Variant::String(_) => true,
                     Variant::Object(_) | Variant::Array(_) => true,
-                    Variant::Bool(_) | Variant::Number(_) => true,
+                    Variant::Bool(_) | Variant::Number(_) | Variant::BigInt(_) => true,
                     Variant::Bytes(_) => true,
                     Variant::Null | Variant::Date(_) | Variant::Regexp(_) => false,
                 }
@@ -586,6 +589,7 @@ fn variant_to_json_value(variant: &Variant) -> JsonValue {
     match variant {
         Variant::Null => JsonValue::Null,
         Variant::Bool(b) => JsonValue::Bool(*b),
+        Variant::BigInt(n) => JsonValue::String(n.value().to_string()),
         Variant::Number(n) => JsonValue::Number(n.clone()),
         Variant::String(s) => JsonValue::String(s.clone()),
         Variant::Array(arr) => {

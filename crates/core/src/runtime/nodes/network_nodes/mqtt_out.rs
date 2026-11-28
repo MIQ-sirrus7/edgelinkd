@@ -405,6 +405,7 @@ impl MqttOutNode {
             Variant::Null => Ok(Vec::new()),
             Variant::String(s) => Ok(s.as_bytes().to_vec()),
             Variant::Bytes(bytes) => Ok(bytes.clone()),
+            Variant::BigInt(n) => Ok(n.value().to_string().into_bytes()),
             Variant::Number(n) => Ok(n.to_string().into_bytes()),
             Variant::Bool(b) => Ok(b.to_string().into_bytes()),
             Variant::Object(_) | Variant::Array(_) => {

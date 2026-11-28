@@ -209,6 +209,7 @@ fn variant_to_yaml_value(variant: &Variant) -> yaml::Value {
     match variant {
         Variant::Null => yaml::Value::Null,
         Variant::Bool(b) => yaml::Value::Bool(*b),
+        Variant::BigInt(n) => yaml::Value::String(n.value().to_string()),
         Variant::Number(n) => {
             if let Some(i) = n.as_i64() {
                 yaml::Value::Number(yaml::Number::from(i))

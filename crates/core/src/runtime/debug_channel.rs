@@ -68,6 +68,7 @@ pub fn encode_debug_value(value: Option<&Variant>) -> (String, String) {
         Some(value) => match value {
             Variant::Null => ("(undefined)".to_string(), "null".to_string()),
             Variant::Bool(b) => (b.to_string(), "boolean".to_string()),
+            Variant::BigInt(_) => (reviver_json(value), "bigint".to_string()),
             Variant::Number(n) => (n.to_string(), "number".to_string()),
             Variant::String(s) => (truncate_text(s), format!("string[{}]", char_len(s))),
             Variant::Bytes(bytes) => (hex_dump(bytes, DEBUG_MAX_LENGTH), format!("buffer[{}]", bytes.len())),
@@ -184,6 +185,7 @@ fn reviver_json(value: &Variant) -> String {
             let data = json_text(&format!("/{}/", regexp_pattern(value)));
             format!("{{\"__enc__\":true,\"type\":\"regexp\",\"data\":{data}}}")
         }
+        Variant::BigInt(n) => format!(r#"{{"__enc__":true,"type":"bigint","data":"{}"}}"#, n.value()),
         Variant::Date(t) => json_text(&date_text(t)),
         // Numbers, booleans, `null` and short strings are their own JSON text.
         other => serde_json::to_string(other).unwrap_or_else(|_| "null".to_string()),
@@ -199,6 +201,7 @@ fn inspect_value(value: &Variant) -> String {
     match value {
         Variant::Null => "null".to_string(),
         Variant::Bool(b) => b.to_string(),
+        Variant::BigInt(n) => format!("{}n", n.value()),
         Variant::Number(n) => n.to_string(),
         Variant::String(s) => format!("'{}'", escape_js_string(s)),
         Variant::Bytes(bytes) => {

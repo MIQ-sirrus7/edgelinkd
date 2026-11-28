@@ -267,6 +267,7 @@ impl HttpOutNode {
         match variant {
             Variant::Null => Value::Null,
             Variant::Bool(b) => Value::Bool(*b),
+            Variant::BigInt(n) => Value::String(n.value().to_string()),
             Variant::Number(n) => Value::Number(n.clone()),
             Variant::String(s) => Value::String(s.clone()),
             Variant::Array(arr) => {
